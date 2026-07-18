@@ -1,11 +1,32 @@
-<div align="center">
+# Italian Freebox Manager
 
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
+Un'applicazione Android moderna per la gestione del tuo router Freebox/Iliadbox, sviluppata interamente in Kotlin utilizzando Jetpack Compose.
 
-  <h1>Built with AI Studio</h2>
+## Caratteristiche Principali
 
-  <p>The fastest path from prompt to production with Gemini.</p>
+- **Gestione API:** Interazione diretta con le API Freebox OS per il controllo remoto e locale del router.
+- **Interfaccia Utente:** Design pulito e moderno basato su Material Design 3, ottimizzato per un'esperienza fluida.
+- **Gestione Dispositivi:** Visualizzazione in tempo reale dei dispositivi connessi alla rete.
+- **Monitoraggio Hardware:** Controllo delle prestazioni del sistema, inclusa temperatura CPU, velocità della ventola e tempo di attività.
+- **Gestione File:** Accesso integrato ai file archiviati sul server Freebox.
+- **Controllo Sistema:** Funzionalità dedicata per il riavvio del dispositivo direttamente dall'app.
 
-  <a href="https://aistudio.google.com/apps">Start building</a>
+## Requisiti
 
-</div>
+- Android SDK (API 24 o superiore)
+- Kotlin (supportato via Gradle)
+- Connessione alla rete del router Freebox/Iliadbox per la configurazione iniziale
+
+## Installazione e Build
+
+1. Clona questo repository sul tuo computer.
+2. Apri il progetto in Android Studio o utilizza il terminale.
+3. Per compilare il progetto, esegui il comando:
+   ```bash
+   ./gradlew assembleDebug
+   ```
+4. L'APK generato si troverà in `app/build/outputs/apk/debug/`.
+
+## Licenza
+
+Questo progetto è distribuito a scopo dimostrativo.

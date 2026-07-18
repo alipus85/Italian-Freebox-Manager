@@ -1,0 +1,6 @@
+{
+  "name": "Italian Freebox Manager",
+  "description": "Una bellissima e moderna applicazione in Material Design 3 per gestire il tuo router ItalianFreebox / Freebox in locale o da remoto tramite l'API Freebox OS.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
