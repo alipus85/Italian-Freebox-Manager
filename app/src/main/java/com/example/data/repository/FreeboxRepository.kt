@@ -1068,16 +1068,18 @@ class FreeboxRepository(private val context: Context) {
             .addHeader("X-Fbx-App-Auth", token)
             .build()
             
-        val okHttpClient = OkHttpClient.Builder().build()
+        val okHttpClient = getUnsafeOkHttpClientBuilder().build()
         val moshi = Moshi.Builder().addLast(KotlinJsonAdapterFactory()).build()
         val startAdapter = moshi.adapter(Map::class.java)
 
         val webSocket = okHttpClient.newWebSocket(request, object : okhttp3.WebSocketListener() {
             override fun onOpen(webSocket: okhttp3.WebSocket, response: okhttp3.Response) {
+                val absoluteDir = if (destinationDir.startsWith("/")) destinationDir else if (destinationDir.isEmpty()) "/" else "/$destinationDir"
+                val base64Dir = android.util.Base64.encodeToString(absoluteDir.toByteArray(), android.util.Base64.NO_WRAP)
                 val startAction = mapOf(
                     "action" to "upload_start",
                     "request_id" to 1,
-                    "dirname" to destinationDir,
+                    "dirname" to base64Dir,
                     "filename" to fileName,
                     "size" to fileSize,
                     "force" to "overwrite"
