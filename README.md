@@ -19,6 +19,13 @@ Un'applicazione Android moderna per la gestione del tuo router Freebox/Iliadbox,
 
 ## Installazione e Build
 
+### Utilizzo del Workflow GitHub (Consigliato)
+Puoi scaricare l'ultima versione compilata dell'APK direttamente da GitHub:
+1. Vai alla sezione **Actions** di questo repository.
+2. Seleziona il workflow "Android CI".
+3. Scarica l'artefatto denominato `ItalianFreeboxManager` dall'ultima esecuzione riuscita.
+
+### Compilazione Locale
 1. Clona questo repository sul tuo computer.
 2. Apri il progetto in Android Studio o utilizza il terminale.
 3. Per compilare il progetto, esegui il comando:

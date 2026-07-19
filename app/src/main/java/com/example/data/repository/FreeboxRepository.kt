@@ -81,11 +81,31 @@ class FreeboxRepository(private val context: Context) {
     private val simulatedWifiEnabled = MutableStateFlow(true)
     private val simulatedConnectedDevices = MutableStateFlow(
         listOf(
-            LanHost("device_1", "iPhone 15 Pro", true, "smartphone", "wifi", System.currentTimeMillis()),
-            LanHost("device_2", "MacBook Pro 14", true, "workstation", "wifi", System.currentTimeMillis() - 120000),
-            LanHost("device_3", "Sony Smart TV", true, "tv", "ethernet", System.currentTimeMillis() - 600000),
-            LanHost("device_4", "iPad Air", false, "tablet", "wifi", System.currentTimeMillis() - 86400000),
-            LanHost("device_5", "HP LaserJet Printer", true, "printer", "ethernet", System.currentTimeMillis() - 1000)
+            LanHost(
+                "device_1", "iPhone 15 Pro", true, "smartphone", "wifi", System.currentTimeMillis(),
+                l2ident = L2Ident("1A:2B:3C:4D:5E:6F", "mac"),
+                l3connectivities = listOf(L3Connectivity("192.168.1.12", true, "ipv4"))
+            ),
+            LanHost(
+                "device_2", "MacBook Pro 14", true, "workstation", "wifi", System.currentTimeMillis() - 120000,
+                l2ident = L2Ident("AA:BB:CC:DD:EE:FF", "mac"),
+                l3connectivities = listOf(L3Connectivity("192.168.1.15", true, "ipv4"))
+            ),
+            LanHost(
+                "device_3", "Sony Smart TV", true, "tv", "ethernet", System.currentTimeMillis() - 600000,
+                l2ident = L2Ident("11:22:33:44:55:66", "mac"),
+                l3connectivities = listOf(L3Connectivity("192.168.1.50", true, "ipv4"))
+            ),
+            LanHost(
+                "device_4", "iPad Air", false, "tablet", "wifi", System.currentTimeMillis() - 86400000,
+                l2ident = L2Ident("00:11:22:33:44:55", "mac"),
+                l3connectivities = listOf(L3Connectivity("192.168.1.20", false, "ipv4"))
+            ),
+            LanHost(
+                "device_5", "HP LaserJet Printer", true, "printer", "ethernet", System.currentTimeMillis() - 1000,
+                l2ident = L2Ident("77:88:99:AA:BB:CC", "mac"),
+                l3connectivities = listOf(L3Connectivity("192.168.1.100", true, "ipv4"))
+            )
         )
     )
 

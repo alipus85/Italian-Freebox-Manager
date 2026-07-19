@@ -119,14 +119,29 @@ data class L2Ident(
 )
 
 @JsonClass(generateAdapter = true)
+data class L3Connectivity(
+    @Json(name = "addr") val addr: String?,
+    @Json(name = "active") val active: Boolean?,
+    @Json(name = "af") val af: String?
+)
+
+@JsonClass(generateAdapter = true)
 data class LanHost(
     @Json(name = "id") val id: String,
     @Json(name = "primary_name") val primaryName: String?,
     @Json(name = "active") val active: Boolean?,
     @Json(name = "host_type") val hostType: String?, // smartphone, workstation, printer, etc.
     @Json(name = "connectivity_type") val connectivityType: String?, // wifi, ethernet
-    @Json(name = "last_activity") val lastActivity: Long?
-)
+    @Json(name = "last_activity") val lastActivity: Long?,
+    @Json(name = "l2ident") val l2ident: L2Ident? = null,
+    @Json(name = "l3connectivities") val l3connectivities: List<L3Connectivity>? = null
+) {
+    val ipAddress: String?
+        get() = l3connectivities?.firstOrNull { it.active == true || it.af == "ipv4" }?.addr ?: l3connectivities?.firstOrNull()?.addr
+
+    val macAddress: String?
+        get() = l2ident?.id
+}
 
 @JsonClass(generateAdapter = true)
 data class LanHostsResponse(

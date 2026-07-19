@@ -78,6 +78,7 @@ data class FreeboxUiState(
 
     // System Metrics
     val systemUptime: String = "4 giorni, 12 ore",
+    val internetConnectionTime: String = "21 giorni, 4 ore",
     val systemFirmwareVersion: String = "4.8.1",
     val systemCpuTemp: String = "48°C (Normale)",
     val systemFanSpeed: String = "1850 giri/min"

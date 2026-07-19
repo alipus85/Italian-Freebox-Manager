@@ -90,6 +90,26 @@ fun MainAppContainer() {
 
     var showRebootDialog by remember { mutableStateOf(false) }
     var showAddDownloadDialog by remember { mutableStateOf(false) }
+    var selectedDevice by remember { mutableStateOf<LanHost?>(null) }
+    
+    if (selectedDevice != null) {
+        AlertDialog(
+            onDismissRequest = { selectedDevice = null },
+            title = { Text(selectedDevice?.primaryName ?: "Dispositivo") },
+            text = { 
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("ID: ${selectedDevice?.id}")
+                    Text("IP: ${selectedDevice?.ipAddress ?: "N/A"}")
+                    Text("MAC: ${selectedDevice?.macAddress ?: "N/A"}")
+                    Text("Tipo: ${selectedDevice?.hostType ?: "N/A"}")
+                    Text("Connettività: ${selectedDevice?.connectivityType ?: "N/A"}")
+                    Text("Attivo: ${if (selectedDevice?.active == true) "Sì" else "No"}")
+                }
+            },
+            confirmButton = { TextButton(onClick = { selectedDevice = null }) { Text("Chiudi") } }
+        )
+    }
+
     var newDownloadUrl by remember { mutableStateOf("") }
     
     var showInitialAuthDialog by remember { mutableStateOf(false) }
@@ -405,7 +425,7 @@ fun MainAppContainer() {
                                     }
                                 }
                                 Spacer(modifier = Modifier.height(16.dp))
-                                DevicesList(devices = uiState.devices)
+                                DevicesList(devices = uiState.devices, onDeviceClick = { selectedDevice = it })
                             }
                         }
                     }
@@ -489,6 +509,26 @@ fun HomeScreen(
     uiState: FreeboxUiState,
     viewModel: FreeboxViewModel
 ) {
+    var selectedDevice by remember { mutableStateOf<LanHost?>(null) }
+
+    if (selectedDevice != null) {
+        AlertDialog(
+            onDismissRequest = { selectedDevice = null },
+            title = { Text(selectedDevice?.primaryName ?: "Dispositivo") },
+            text = { 
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("ID: ${selectedDevice?.id}")
+                    Text("IP: ${selectedDevice?.ipAddress ?: "N/A"}")
+                    Text("MAC: ${selectedDevice?.macAddress ?: "N/A"}")
+                    Text("Tipo: ${selectedDevice?.hostType ?: "N/A"}")
+                    Text("Connettività: ${selectedDevice?.connectivityType ?: "N/A"}")
+                    Text("Attivo: ${if (selectedDevice?.active == true) "Sì" else "No"}")
+                }
+            },
+            confirmButton = { TextButton(onClick = { selectedDevice = null }) { Text("Chiudi") } }
+        )
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -797,7 +837,10 @@ fun HomeScreen(
                     // Limita l'anteprima a 3 dispositivi
                     val activeDevices = uiState.devices.take(3)
                     for ((index, host) in activeDevices.withIndex()) {
-                        DeviceRow(host = host)
+                        DeviceRow(
+                            host = host,
+                            modifier = Modifier.clickable { selectedDevice = host }
+                        )
                         if (index < activeDevices.size - 1) {
                             HorizontalDivider(
                                 color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
@@ -822,6 +865,25 @@ fun DevicesScreen(
 ) {
     var searchQuery by remember { mutableStateOf("") }
     var showOnlyActive by remember { mutableStateOf(false) }
+    var selectedDevice by remember { mutableStateOf<LanHost?>(null) }
+
+    if (selectedDevice != null) {
+        AlertDialog(
+            onDismissRequest = { selectedDevice = null },
+            title = { Text(selectedDevice?.primaryName ?: "Dispositivo") },
+            text = { 
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("ID: ${selectedDevice?.id}")
+                    Text("IP: ${selectedDevice?.ipAddress ?: "N/A"}")
+                    Text("MAC: ${selectedDevice?.macAddress ?: "N/A"}")
+                    Text("Tipo: ${selectedDevice?.hostType ?: "N/A"}")
+                    Text("Connettività: ${selectedDevice?.connectivityType ?: "N/A"}")
+                    Text("Attivo: ${if (selectedDevice?.active == true) "Sì" else "No"}")
+                }
+            },
+            confirmButton = { TextButton(onClick = { selectedDevice = null }) { Text("Chiudi") } }
+        )
+    }
 
     Column(
         modifier = Modifier
@@ -912,21 +974,21 @@ fun DevicesScreen(
                     }
                 }
             } else {
-                DevicesList(devices = filtered)
+                DevicesList(devices = filtered, onDeviceClick = { selectedDevice = it })
             }
         }
     }
 }
 
 @Composable
-fun DevicesList(devices: List<LanHost>) {
+fun DevicesList(devices: List<LanHost>, onDeviceClick: (LanHost) -> Unit) {
     LazyColumn(
         verticalArrangement = Arrangement.spacedBy(8.dp),
         modifier = Modifier.fillMaxSize()
     ) {
         items(devices, key = { it.id }) { host ->
             Card(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().clickable { onDeviceClick(host) },
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
                 shape = RoundedCornerShape(16.dp)
@@ -1791,6 +1853,15 @@ fun SettingsScreen(
                     Text("Tempo di attività", fontSize = 13.sp)
                     Text(uiState.systemUptime, fontSize = 13.sp, fontWeight = FontWeight.Medium)
                 }
+                HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text("Connesso da", fontSize = 13.sp)
+                    Text(uiState.internetConnectionTime, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                }
             }
         }
 
@@ -1977,9 +2048,9 @@ fun IliadHeader(
 }
 
 @Composable
-fun DeviceRow(host: LanHost) {
+fun DeviceRow(host: LanHost, modifier: Modifier = Modifier) {
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
