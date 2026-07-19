@@ -1013,6 +1013,11 @@ fun FilesScreen(uiState: FreeboxUiState, viewModel: FreeboxViewModel) {
     var showCreateDirDialog by remember { mutableStateOf(false) }
     var dirNameInput by remember { mutableStateOf("") }
     
+    BackHandler(enabled = uiState.currentPath.isNotEmpty()) {
+        val parentPath = uiState.currentPath.substringBeforeLast("/", "")
+        viewModel.loadFiles(parentPath)
+    }
+    
     val context = LocalContext.current
     val uploadLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
         if (uri != null) {

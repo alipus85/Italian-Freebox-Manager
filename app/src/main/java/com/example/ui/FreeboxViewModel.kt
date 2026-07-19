@@ -277,14 +277,22 @@ class FreeboxViewModel(application: Application) : AndroidViewModel(application)
 
     fun loadFiles(path: String = "") {
         viewModelScope.launch {
-            _uiState.update { it.copy(isLoadingFiles = true, currentPath = path) }
+            _uiState.update { it.copy(isLoadingFiles = true) }
             val result = repository.getFiles(path)
             _uiState.update { state ->
-                state.copy(
-                    isLoadingFiles = false,
-                    files = result.getOrNull() ?: state.files,
-                    error = result.exceptionOrNull()?.message ?: state.error
-                )
+                if (result.isSuccess) {
+                    state.copy(
+                        isLoadingFiles = false,
+                        currentPath = path,
+                        files = result.getOrNull() ?: emptyList(),
+                        error = null
+                    )
+                } else {
+                    state.copy(
+                        isLoadingFiles = false,
+                        error = result.exceptionOrNull()?.message ?: "Impossibile recuperare i file"
+                    )
+                }
             }
         }
     }
