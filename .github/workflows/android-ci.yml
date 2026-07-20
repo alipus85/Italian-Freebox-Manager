@@ -22,4 +22,4 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: ItalianFreeboxManager
-        path: app/build/outputs/apk/debug/ItalianFreeboxManager.apk
+        path: app/build/outputs/apk/debug/Italianfreeboxmanager.apk
