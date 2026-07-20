@@ -715,7 +715,7 @@ class FreeboxViewModel(application: Application) : AndroidViewModel(application)
             }
 
             systemConfigResult.onSuccess { sys ->
-                val uptimeStr = sys.uptime ?: "4 giorni, 12 ore"
+                val uptimeStr = formatItalianUptime(sys.uptimeVal, sys.uptime)
                 val firmwareStr = sys.firmwareVersion ?: "4.8.1"
                 
                 // Find CPU temperature
@@ -733,6 +733,7 @@ class FreeboxViewModel(application: Application) : AndroidViewModel(application)
                 _uiState.update {
                     it.copy(
                         systemUptime = uptimeStr,
+                        internetConnectionTime = uptimeStr,
                         systemFirmwareVersion = firmwareStr,
                         systemCpuTemp = cpuTempStr,
                         systemFanSpeed = fanSpeedStr
@@ -797,6 +798,44 @@ class FreeboxViewModel(application: Application) : AndroidViewModel(application)
 
     fun clearErrorAndFeedback() {
         _uiState.update { it.copy(error = null, feedback = null) }
+    }
+
+    private fun formatItalianUptime(seconds: Long?, frenchFallback: String?): String {
+        if (seconds != null) {
+            val days = seconds / 86400
+            val hours = (seconds % 86400) / 3600
+            val minutes = (seconds % 3600) / 60
+            val secs = seconds % 60
+
+            val parts = mutableListOf<String>()
+            if (days > 0) {
+                parts.add("$days ${if (days == 1L) "giorno" else "giorni"}")
+            }
+            if (hours > 0) {
+                parts.add("$hours ${if (hours == 1L) "ora" else "ore"}")
+            }
+            if (minutes > 0) {
+                parts.add("$minutes ${if (minutes == 1L) "minuto" else "minuti"}")
+            }
+            if (secs > 0 || parts.isEmpty()) {
+                parts.add("$secs ${if (secs == 1L) "secondo" else "secondi"}")
+            }
+            return parts.joinToString(", ")
+        }
+        
+        if (frenchFallback != null) {
+            return frenchFallback
+                .replace("jours", "giorni")
+                .replace("jour", "giorno")
+                .replace("heures", "ore")
+                .replace("heure", "ora")
+                .replace("minutes", "minuti")
+                .replace("minute", "minuto")
+                .replace("secondes", "secondi")
+                .replace("seconde", "secondo")
+        }
+        
+        return "4 giorni, 12 ore"
     }
 
     override fun onCleared() {
