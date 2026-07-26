@@ -27,10 +27,15 @@ import retrofit2.Retrofit
 import retrofit2.converter.moshi.MoshiConverterFactory
 import java.util.concurrent.TimeUnit
 import java.security.SecureRandom
+import java.security.KeyStore
+import java.security.cert.CertificateFactory
 import java.security.cert.X509Certificate
+import java.io.ByteArrayInputStream
 import javax.net.ssl.SSLContext
 import javax.net.ssl.TrustManager
+import javax.net.ssl.TrustManagerFactory
 import javax.net.ssl.X509TrustManager
+import javax.net.ssl.HttpsURLConnection
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
 
@@ -111,9 +116,9 @@ class FreeboxRepository(private val context: Context) {
 
     private val simulatedDownloadTasks = MutableStateFlow(
         listOf(
-            DownloadTask(id = 1, name = "Ubuntu-24.04-Desktop-amd64.iso", status = "downloading", size = 4100000000L, downloadedSize = 1200000000L, queuePosition = 1),
-            DownloadTask(id = 2, name = "Debian-12.5.0-amd64-netinst.iso", status = "stopped", size = 620000000L, downloadedSize = 310000000L, queuePosition = 2),
-            DownloadTask(id = 3, name = "Big_Buck_Bunny_1080p.mp4", status = "done", size = 276000000L, downloadedSize = 276000000L, queuePosition = 3)
+            DownloadTask(id = 1, name = "Ubuntu-24.04-Desktop-amd64.iso", status = "downloading", size = 4100000000L, downloadedSize = 1200000000L, queuePosition = 1, uploadedSize = 0L, seedsConnected = 24, seedsTotal = 150, peersConnected = 58, peersTotal = 320),
+            DownloadTask(id = 2, name = "Debian-12.5.0-amd64-netinst.iso", status = "stopped", size = 620000000L, downloadedSize = 310000000L, queuePosition = 2, uploadedSize = 0L, seedsConnected = 0, seedsTotal = 0, peersConnected = 1, peersTotal = 3),
+            DownloadTask(id = 3, name = "Big_Buck_Bunny_1080p.mp4", status = "seeding", size = 276000000L, downloadedSize = 276000000L, queuePosition = 3, txRate = 250000L, uploadedSize = 220000000L, seedsConnected = 12, seedsTotal = 45, peersConnected = 18, peersTotal = 60)
         )
     )
 
@@ -204,6 +209,175 @@ class FreeboxRepository(private val context: Context) {
         }
     }
 
+    private val FREEBOX_ROOT_CAS = listOf(
+        // Freebox ECC Root CA
+        """-----BEGIN CERTIFICATE-----
+MIICWTCCAd+gAwIBAgIJAMaRcLnIgyukMAoGCCqGSM49BAMCMGExCzAJBgNVBAYT
+AkZSMQ8wDQYDVQQIDAZGcmFuY2UxDjAMBgNVBAcMBVBhcmlzMRMwEQYDVQQKDApG
+cmVlYm94IFNBMRwwGgYDVQQDDBNGcmVlYm94IEVDQyBSb290IENBMB4XDTE1MDkw
+MTE4MDIwN1oXDTM1MDgyNzE4MDIwN1owYTELMAkGA1UEBhMCRlIxDzANBgNVBAgM
+BkZyYW5jZTEOMAwGA1UEBwwFUGFyaXMxEzARBgNVBAoMCkZyZWVib3ggU0ExHDAa
+BgNVBAMME0ZyZWVib3ggRUNDIFJvb3QgQ0EwdjAQBgcqhkjOPQIBBgUrgQQAIgNi
+AASCjD6ZKn5ko6cU5Vxh8GA1KqRi6p2GQzndxHtuUmwY8RvBbhZ0GIL7bQ4f08ae
+JOv0ycWjEW0fyOnAw6AYdsN6y1eNvH2DVfoXQyGoCSvXQNAUxla+sJuLGICRYiZz
+mnijYzBhMB0GA1UdDgQWBBTIB3c2GlbV6EIh2ErEMJvFxMz/QTAfBgNVHSMEGDAW
+gBTIB3c2GlbV6EIh2ErEMJvFxMz/QTAPBgNVHRMBAf8EBTADAQH/MA4GA1UdDwEB
+/wQEAwIBhjAKBggqhkjOPQQDAgNoADBlAjA8tzEMRVX8vrFuOGDhvZr7OSJjbBr8
+gl2I70LeVNGEXZsAThUkqj5Rg9bV8xw3aSMCMQCDjB5CgsLH8EdZmiksdBRRKM2r
+vxo6c0dSSNrr7dDN+m2/dRvgoIpGL2GauOGqDFY=
+-----END CERTIFICATE-----""",
+        // Freebox Root CA
+        """-----BEGIN CERTIFICATE-----
+MIIFmjCCA4KgAwIBAgIJAKLyz15lYOrYMA0GCSqGSIb3DQEBCwUAMFoxCzAJBgNV
+BAYTAkZSMQ8wDQYDVQQIDAZGcmFuY2UxDjAMBgNVBAcMBVBhcmlzMRAwDgYDVQQK
+DAdGcmVlYm94MRgwFgYDVQQDDA9GcmVlYm94IFJvb3QgQ0EwHhcNMTUwNzMwMTUw
+OTIwWhcNMzUwNzI1MTUwOTIwWjBaMQswCQYDVQQGEwJGUjEPMA0GA1UECAwGRnJh
+bmNlMQ4wDAYDVQQHDAVQYXJpczEQMA4GA1UECgwHRnJlZWJveDEYMBYGA1UEAwwP
+RnJlZWJveCBSb290IENBMIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEA
+xqYIvq8538SH6BJ99jDlOPoyDBrlwKEp879oYplicTC2/p0X66R/ft0en1uSQadC
+sL/JTyfgyJAgI1Dq2Y5EYVT/7G6GBtVH6Bxa713mM+I/v0JlTGFalgMqamMuIRDQ
+tdyvqEIs8DcfGB/1l2A8UhKOFbHQsMcigxOe9ZodMhtVNn0mUyG+9Zgu1e/YMhsS
+iG4Kqap6TGtk80yruS1mMWVSgLOq9F5BGD4rlNlWLo0C3R10mFCpqvsFU+g4kYoA
+dTxaIpi1pgng3CGLE0FXgwstJz8RBaZObYEslEYKDzmer5zrU1pVHiwkjsgwbnuy
+WtM1Xry3Jxc7N/i1rxFmN/4l/Tcb1F7x4yVZmrzbQVptKSmyTEvPvpzqzdxVWuYi
+qIFSe/njl8dX9v5hjbMo4CeLuXIRE4nSq2A7GBm4j9Zb6/l2WIBpnCKtwUVlroKw
+NBgB6zHg5WI9nWGuy3ozpP4zyxqXhaTgrQcDDIG/SQS1GOXKGdkCcSa+VkJ0jTf5
+od7PxBn9/TuN0yYdgQK3YDjD9F9+CLp8QZK1bnPdVGywPfL1iztngF9J6JohTyL/
+VMvpWfS/X6R4Y3p8/eSio4BNuPvm9r0xp6IMpW92V8SYL0N6TQQxzZYgkLV7TbQI
+Hw6v64yMbbF0YS9VjS0sFpZcFERVQiodRu7nYNC1jy8CAwEAAaNjMGEwHQYDVR0O
+BBYEFD2erMkECujilR0BuER09FdsYIebMB8GA1UdIwQYMBaAFD2erMkECujilR0B
+uER09FdsYIebMA8GA1UdEwEB/wQFMAMBAf8wDgYDVR0PAQH/BAQDAgGGMA0GCSqG
+SIb3DQEBCwUAA4ICAQAZ2Nx8mWIWckNY8X2t/ymmCbcKxGw8Hn3BfTDcUWQ7GLRf
+MGzTqxGSLBQ5tENaclbtTpNrqPv2k6LY0VjfrKoTSS8JfXkm6+FUtyXpsGK8MrLL
+hZ/YdADTfbbWOjjD0VaPUoglvo2N4n7rOuRxVYIij11fL/wl3OUZ7GHLgL3qXSz0
++RGW+1oZo8HQ7pb6RwLfv42Gf+2gyNBckM7VVh9R19UkLCsHFqhFBbUmqwJgNA2/
+3twgV6Y26qlyHXXODUfV3arLCwFoNB+IIrde1E/JoOry9oKvF8DZTo/Qm6o2KsdZ
+dxs/YcIUsCvKX8WCKtH6la/kFCUcXIb8f1u+Y4pjj3PBmKI/1+Rs9GqB0kt1otyx
+Q6bqxqBSgsrkuhCfRxwjbfBgmXjIZ/a4muY5uMI0gbl9zbMFEJHDojhH6TUB5qd0
+JJlI61gldaT5Ci1aLbvVcJtdeGhElf7pOE9JrXINpP3NOJJaUSueAvxyj/WWoo0v
+4KO7njox8F6jCHALNDLdTsX0FTGmUZ/s/QfJry3VNwyjCyWDy1ra4KWoqt6U7SzM
+d5jENIZChM8TnDXJzqc+mu00cI3icn9bV9flYCXLTIsprB21wVSMh0XeBGylKxeB
+S27oDfFq04XSox7JM9HdTt2hLK96x1T7FpFrBTnALzb7vHv9MhXqAT90fPR/8A==
+-----END CERTIFICATE-----""",
+        // Iliadbox ECC Root CA (Italy)
+        """-----BEGIN CERTIFICATE-----
+MIICOjCCAcCgAwIBAgIUI0Tu7zsrBJACQIZgLMJobtbdNn4wCgYIKoZIzj0EAwIw
+TDELMAkGA1UEBhMCSVQxDjAMBgNVBAgMBUl0YWx5MQ4wDAYDVQQKDAVJbGlhZDEd
+MBsGA1UEAwwUSWxpYWRib3ggRUNDIFJvb3QgQ0EwHhcNMjAxMTI3MDkzODEzWhcN
+NDAxMTIyMDkzODEzWjBMMQswCQYDVQQGEwJJVDEOMAwGA1UECAwFSXRhbHkxDjAM
+BgNVBAoMBUlsaWFkMR0wGwYDVQQDDBRJbGlhZGJveCBFQ0MgUm9vdCBDQTB2MBAG
+ByqGSM49AgEGBSuBBAAiA2IABMryJyb2loHNAioY8IztN5MI3UgbVHVP/vZwcnre
+ZvJOyDvE4HJgIti5qmfswlnMzpNbwf/MkT+7HAU8jJoTorRm1wtAnQ9cWD3Ebv79
+RPwtjjy3Bza3SgdVxmd6fWPUKaNjMGEwHQYDVR0OBBYEFDUij/4lpoJ+kOXRyrcM
+jf2RPzOqMB8GA1UdIwQYMBaAFDUij/4lpoJ+kOXRyrcMjf2RPzOqMA8GA1UdEwEB
+/wQFMAMBAf8wDgYDVR0PAQH/BAQDAgGGMAoGCCqGSM49BAMCA2gAMGUCMQC6eUV1
+pFh4UpJOTc1JToztN4ttnQR6rIzxMZ6mNCe+nhjkohWp24pr7BpUYSbEizYCMAQ6
+LCiBKV2j7QQGy7N1aBmdur17ZepYzR1YV0eI+Kd978aZggsmhjXENQYVTmm/XA==
+-----END CERTIFICATE-----""",
+        // Iliadbox RSA Root CA (Italy)
+        """-----BEGIN CERTIFICATE-----
+MIIFiTCCA3GgAwIBAgIUTXoJE/kJnSKpxk5FjcmqmGah9zcwDQYJKoZIhvcNAQEL
+BQAwTDELMAkGA1UEBhMCSVQxDjAMBgNVBAgMBUl0YWx5MQ4wDAYDVQQKDAVJbGlh
+ZDEdMBsGA1UEAwwUSWxpYWRib3ggUlNBIFJvb3QgQ0EwHhcNMjAxMTI3MDkzODEy
+WhcNNDAxMTIyMDkzODEyWjBMMQswCQYDVQQGEwJJVDEOMAwGA1UECAwFSXRhbHkx
+DjAMBgNVBAoMBUlsaWFkMR0wGwYDVQQDDBRJbGlhZGJveCBSU0EgUm9vdCBDQTCC
+AiIwDQYJKoZIhvcNAQEBBQADggIPADCCAgoCggIBANXKZSyCmix6jt7jUmaCP4XF
+caF4azeYZuA8A4sWQmQXRWTDj8oNClE5w7zo5qUYzHIBOubKY7hhIU7RXYR5Bdny
+arNRoo5ZBplgEkv3G00IgXY2/lCywPQ8WorAn0k/uaRce239r6EkGC3fxCA3Asnc
+q9lNkUoWaf0GktJai0DuW7bNY8cq+vzZpy/36ey0LQ4OoehfiA6vlUTVWakpjecJ
+ller1RfVlgEH26wnerGge3LYBZv27XiahCft54AQLxRY3H/z8XpKsPnJJrrhEvSo
+2p64Bd+g7ZbzCdeakrypjVC/eWn14UzbcBVgh0p4F4990LuGxLVqyh6XcZOSSi01
+4fpca5xPDCiohEX7ehMLpdURbhKzPj17IpwTmonfVmxkvV8rca1PqhDPEOouwPtc
+M55eCgtwgSBeDznFKD7s+az/SZYC16GTgyXTCd2lId/J1unZ4pdzNVMAglTpnGgz
+eQkHvfcVYdJj49tOtW0OpSPBiNIC6LCVY9wtH5dRMm0k+A8QDP+9HQaOs3LIUMwu
+WGePw6r+eXUYw/2yO0z3zI/63hOpzZVixW+T7h3SY5B+sTrxR9fRD1oyk/rPV4I3
+X5mZnyzSowjcN3+hSkGIZBleMO3CHaYleIf1/9HHhCJCVeeJ4kwEWY18Z0A+ohFh
+D/dipgwmLCDH1/irDT4pAgMBAAGjYzBhMB0GA1UdDgQWBBTcW1RrTVIizaqkrkTI
+CSw86qDJkTAfBgNVHSMEGDAWgBTcW1RrTVIizaqkrkTICSw86qDJkTAPBgNVHRMB
+Af8EBTADAQH/MA4GA1UdDwEB/wQEAwIBhjANBgkqhkiG9w0BAQsFAAOCAgEAOfi6
+fCuVLJD+vttO34cdB3i5hofmNrzgLh/spnwdm4y9EvvVqDvLdVLEIbvKf0QEcW0Y
+dwP1BgmKwwHVv9YydHov8Jr4ANoGGXJnPLPcYDhRnixYEQmlTwSL/CLUcQ2hQWXx
+Oc0k1jJB7uk6TPdX2YJyW4NpIcwI2sa5Dg/L8PqM0/pMYnMyG1hBwUc2M2qg3qTJ
+zeiYT9zBHxS/JXA40yH4g9NzcFisVuYrfmINb11GmeqClm2OWehSdgdv9tEph3NW
+ntJTENRrDvuj/pGZsnbofzgHNN6/nanymmrEPxG+xUGLIAW7zFndTKityhJ9FRqF
+ultoZR2D19hh+n1277TSCPRJzUpq9rrfiqukjua3UjBzEvevnmSbLs1bXcNAxFYN
+oZZ2euHoBv+E3BHjGik4RUkEJYtf5Xh+iffk4zTMfKBERn40fB7yF1xzxyoziltL
+VxfueF9V6N7qjo5Ia7kiShXXsB+QdQdweuxWm1pPYmMbfTxNEqFUs3GhwEjzLaJc
+cJOedwCT4ntbyCcTQaRlDL8QFjdE4gNm2ZaoG+gqGTLPS55H+ZvLsgUCiR5YY44N
+G2Gkv4w/V/eB3eAvd5lgm6oOe8ehdr5JdpD6wnW2GOHs4SBdBo6yR+4RgEimNmgF
+Yu11tlZsB2Iw/TT1EyPVb5z6tK4wUgWLNFAvjXU=
+-----END CERTIFICATE-----"""
+    )
+
+    private fun getOkHttpClientBuilder(): OkHttpClient.Builder {
+        return try {
+            val cf = CertificateFactory.getInstance("X.509")
+            val keyStore = KeyStore.getInstance(KeyStore.getDefaultType()).apply {
+                load(null, null)
+            }
+
+            FREEBOX_ROOT_CAS.forEachIndexed { index, certPem ->
+                val cert = cf.generateCertificate(ByteArrayInputStream(certPem.toByteArray()))
+                keyStore.setCertificateEntry("freebox_ca_$index", cert)
+            }
+
+            val tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm()).apply {
+                init(keyStore)
+            }
+
+            val defaultTmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm()).apply {
+                init(null as KeyStore?)
+            }
+
+            val customTrustManagers = tmf.trustManagers
+            val defaultTrustManagers = defaultTmf.trustManagers
+
+            val customX509 = customTrustManagers.firstOrNull { it is X509TrustManager } as? X509TrustManager
+            val defaultX509 = defaultTrustManagers.firstOrNull { it is X509TrustManager } as? X509TrustManager
+
+            val combinedTrustManager = object : X509TrustManager {
+                override fun checkClientTrusted(chain: Array<out X509Certificate>?, authType: String?) {
+                    defaultX509?.checkClientTrusted(chain, authType)
+                }
+
+                override fun checkServerTrusted(chain: Array<out X509Certificate>?, authType: String?) {
+                    try {
+                        defaultX509?.checkServerTrusted(chain, authType)
+                    } catch (e: Exception) {
+                        try {
+                            customX509?.checkServerTrusted(chain, authType)
+                        } catch (e2: Exception) {
+                            // Fallback for local IP/domain or self-signed box certificate variations if needed
+                            throw e2
+                        }
+                    }
+                }
+
+                override fun getAcceptedIssuers(): Array<X509Certificate> {
+                    val customIssuers = customX509?.acceptedIssuers ?: arrayOf()
+                    val defaultIssuers = defaultX509?.acceptedIssuers ?: arrayOf()
+                    return customIssuers + defaultIssuers
+                }
+            }
+
+            val sslContext = SSLContext.getInstance("TLS")
+            sslContext.init(null, arrayOf<TrustManager>(combinedTrustManager), SecureRandom())
+
+            OkHttpClient.Builder()
+                .sslSocketFactory(sslContext.socketFactory, combinedTrustManager)
+                .hostnameVerifier { hostname, session ->
+                    if (hostname == "mafreebox.freebox.fr" || hostname == "myiliadbox.iliad.it" || hostname.endsWith(".fbxos.fr") || hostname.endsWith(".iliadbox.it")) {
+                        true
+                    } else {
+                        HttpsURLConnection.getDefaultHostnameVerifier().verify(hostname, session)
+                    }
+                }
+        } catch (e: Exception) {
+            Log.e("FreeboxRepository", "Failed to build SSL context, falling back", e)
+            getUnsafeOkHttpClientBuilder()
+        }
+    }
+
     private fun getUnsafeOkHttpClientBuilder(): OkHttpClient.Builder {
         return try {
             val trustAllCerts = arrayOf<TrustManager>(
@@ -266,7 +440,7 @@ class FreeboxRepository(private val context: Context) {
                 }
             }
 
-            val client = getUnsafeOkHttpClientBuilder()
+            val client = getOkHttpClientBuilder()
                 .connectTimeout(5, TimeUnit.SECONDS)
                 .readTimeout(5, TimeUnit.SECONDS)
                 .writeTimeout(5, TimeUnit.SECONDS)
@@ -292,7 +466,7 @@ class FreeboxRepository(private val context: Context) {
             return@withContext Result.success("http://myiliadbox.iliad.it/")
         }
         try {
-            val tempClient = getUnsafeOkHttpClientBuilder()
+            val tempClient = getOkHttpClientBuilder()
                 .connectTimeout(3, TimeUnit.SECONDS)
                 .readTimeout(3, TimeUnit.SECONDS)
                 .build()
@@ -748,14 +922,23 @@ class FreeboxRepository(private val context: Context) {
                 if (task.status == "downloading") {
                     val addSpeed = (3_000_000..12_000_000).random().toLong() // 3-12 MB/s
                     val newDownloaded = (task.downloadedSize + addSpeed).coerceAtMost(task.size)
-                    val newStatus = if (newDownloaded >= task.size) "done" else "downloading"
+                    val newStatus = if (newDownloaded >= task.size) "seeding" else "downloading"
                     val rx = if (newStatus == "downloading") addSpeed else 0L
-                    val tx = if (newStatus == "downloading") (50_000..300_000).random().toLong() else 0L
+                    val tx = if (newStatus == "downloading") (50_000..300_000).random().toLong() else (100_000..600_000).random().toLong()
                     task.copy(
                         downloadedSize = newDownloaded,
                         status = newStatus,
                         rxRate = rx,
                         txRate = tx
+                    )
+                } else if (task.status.contains("seeding", ignoreCase = true) || task.status.contains("seed", ignoreCase = true)) {
+                    val addUpSpeed = (200_000..600_000).random().toLong()
+                    val newUploaded = (task.uploadedSize ?: task.size) + addUpSpeed
+                    task.copy(
+                        downloadedSize = task.size,
+                        uploadedSize = newUploaded,
+                        rxRate = 0L,
+                        txRate = addUpSpeed
                     )
                 } else {
                     task.copy(rxRate = 0L, txRate = 0L)
@@ -1068,7 +1251,7 @@ class FreeboxRepository(private val context: Context) {
             .addHeader("X-Fbx-App-Auth", token)
             .build()
             
-        val okHttpClient = getUnsafeOkHttpClientBuilder().build()
+        val okHttpClient = getOkHttpClientBuilder().build()
         val moshi = Moshi.Builder().addLast(KotlinJsonAdapterFactory()).build()
         val startAdapter = moshi.adapter(Map::class.java)
 

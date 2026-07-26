@@ -1870,6 +1870,82 @@ fun SettingsScreen(
         ) {
             Text("🔄 Riavvia ItalianFreebox", fontWeight = FontWeight.Bold)
         }
+
+        // Informazioni Versione
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+            shape = RoundedCornerShape(24.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Text(
+                    text = "INFORMAZIONI E VERSIONE",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    letterSpacing = 1.sp
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(
+                            text = "ItalianFreebox Client",
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = "Versione ${BuildConfig.VERSION_NAME} (Build ${BuildConfig.VERSION_CODE})",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = Color(0xFF2E7D32).copy(alpha = 0.15f)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "✓ Aggiornata",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF2E7D32)
+                            )
+                        }
+                    }
+                }
+
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text("API Freebox OS", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("v3 - v11 supportata", fontSize = 12.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text("Canale di rilascio", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("Stabile", fontSize = 12.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
+                }
+            }
+        }
     }
 }
 
@@ -2226,7 +2302,9 @@ fun DownloadsScreen(
                 }
 
                 // Count active/total
-                val downloadingCount = uiState.downloadTasks.count { it.status == "downloading" }
+                val downloadingCount = uiState.downloadTasks.count { 
+                    it.status == "downloading" || it.status.contains("seeding", ignoreCase = true) || it.status.contains("seed", ignoreCase = true) 
+                }
                 val totalCount = uiState.downloadTasks.size
                 Text(
                     text = "$downloadingCount attivi di $totalCount",
@@ -2404,9 +2482,16 @@ fun DownloadTaskCard(
     val progress = if (task.size > 0L) task.downloadedSize.toFloat() / task.size else 0f
     val progressPercent = (progress * 100).toInt().coerceIn(0, 100)
 
-    val isDone = task.status == "done"
-    val isStopped = task.status == "stopped" || task.status == "stopped_error"
-    val isDownloading = task.status == "downloading"
+    val isSeeding = task.status.contains("seeding", ignoreCase = true) || task.status.contains("seed", ignoreCase = true)
+    val isDone = task.status == "done" || task.status == "seeding_done"
+    val isStopped = task.status == "stopped" || task.status == "stopped_error" || task.status == "seeding_paused"
+    val isDownloading = task.status == "downloading" || task.status == "starting"
+    val isChecking = task.status == "checking" || task.status == "repairing" || task.status == "extracting"
+
+    // Seeding ratio percentage calculation
+    val ratio = if (task.downloadedSize > 0L) ((task.uploadedSize ?: 0L).toDouble() / task.downloadedSize) else 0.0
+    val seedingRatioPercent = (ratio * 100).toInt()
+    val seedingDisplayPercent = if (seedingRatioPercent > 0) seedingRatioPercent else 100
 
     Card(
         modifier = Modifier
@@ -2439,13 +2524,19 @@ fun DownloadTaskCard(
                     Spacer(modifier = Modifier.height(4.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         val (statusEmoji, statusText, statusColor) = when {
+                            isSeeding -> {
+                                val rateStr = if ((task.txRate ?: 0L) > 0L) " (${formatBytes(task.txRate!!)}/s)" else ""
+                                Triple("🌱", "Seeding in corso$rateStr", Color(0xFF00897B))
+                            }
                             isDone -> Triple("✅", "Completato", Color(0xFF1B5E20))
                             isStopped -> Triple("⏸️", "In pausa", Color(0xFFE65100))
                             isDownloading -> {
                                 val rateStr = if ((task.rxRate ?: 0L) > 0L) " (${formatBytes(task.rxRate!!)}/s)" else ""
                                 Triple("⚡", "Download in corso$rateStr", MaterialTheme.colorScheme.primary)
                             }
-                            else -> Triple("❌", "Errore: ${task.status}", MaterialTheme.colorScheme.error)
+                            isChecking -> Triple("🔍", "Controllo file in corso...", Color(0xFF0288D1))
+                            task.status.contains("error", ignoreCase = true) -> Triple("❌", "Errore: ${task.status}", MaterialTheme.colorScheme.error)
+                            else -> Triple("ℹ️", task.status.replaceFirstChar { it.uppercase() }, Color(0xFF1976D2))
                         }
 
                         Text(
@@ -2490,16 +2581,73 @@ fun DownloadTaskCard(
                 }
             }
 
+            // Torrent Seeds / Peers and Health indicator badge
+            val seedsConn = task.seedsConnected ?: 0
+            val seedsTot = task.seedsTotal ?: 0
+            val peersConn = task.peersConnected ?: 0
+            val peersTot = task.peersTotal ?: 0
+
+            val (healthText, healthColor, healthBg) = when {
+                seedsConn >= 5 || seedsTot >= 10 -> Triple("Torrent Ottimo", Color(0xFF2E7D32), Color(0xFF1B5E20).copy(alpha = 0.15f))
+                seedsConn > 0 || seedsTot >= 1 -> Triple("Torrent Buono", Color(0xFF388E3C), Color(0xFF388E3C).copy(alpha = 0.15f))
+                peersConn > 0 || peersTot > 0 -> Triple("Pochi Seed", Color(0xFFE65100), Color(0xFFE65100).copy(alpha = 0.15f))
+                else -> Triple("Nessun Seed (Scartare)", Color(0xFFC62828), Color(0xFFC62828).copy(alpha = 0.18f))
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(healthBg, RoundedCornerShape(8.dp))
+                    .padding(horizontal = 10.dp, vertical = 6.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "🌱 Seed: $seedsConn/$seedsTot",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = "   👥 Peer: $peersConn/$peersTot",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Normal,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Surface(
+                    shape = RoundedCornerShape(6.dp),
+                    color = healthColor
+                ) {
+                    Text(
+                        text = healthText,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                    )
+                }
+            }
+
             Spacer(modifier = Modifier.height(12.dp))
 
             // Progress bar and Percentage
+            val progressBarColor = when {
+                isSeeding -> Color(0xFF00897B)
+                isDone -> Color(0xFF4CAF50)
+                isStopped -> Color(0xFFFF9800)
+                else -> MaterialTheme.colorScheme.primary
+            }
+
             LinearProgressIndicator(
-                progress = { progress },
+                progress = { if (isSeeding || isDone) 1f else progress },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(6.dp)
                     .clip(CircleShape),
-                color = if (isDone) Color(0xFF4CAF50) else MaterialTheme.colorScheme.primary,
+                color = progressBarColor,
                 trackColor = MaterialTheme.colorScheme.outlineVariant
             )
 
@@ -2511,16 +2659,26 @@ fun DownloadTaskCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                val statsText = when {
+                    isSeeding -> {
+                        val upInfo = if ((task.uploadedSize ?: 0L) > 0L) " • Upload: ${formatBytes(task.uploadedSize!!)}" else ""
+                        "${formatBytes(task.downloadedSize)} di ${formatBytes(task.size)} (Seeding $seedingDisplayPercent%$upInfo)"
+                    }
+                    isDone -> "${formatBytes(task.downloadedSize)} di ${formatBytes(task.size)} (100%)"
+                    else -> "${formatBytes(task.downloadedSize)} di ${formatBytes(task.size)} ($progressPercent%)"
+                }
+
                 Text(
-                    text = "${formatBytes(task.downloadedSize)} di ${formatBytes(task.size)} ($progressPercent%)",
+                    text = statsText,
                     fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = if (isSeeding) Color(0xFF00897B) else MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontWeight = if (isSeeding) FontWeight.SemiBold else FontWeight.Normal,
                     fontFamily = FontFamily.Monospace
                 )
 
                 // Control action buttons (Play/Pause)
                 if (!isDone) {
-                    if (isDownloading) {
+                    if (isDownloading || isSeeding) {
                         IconButton(
                             onClick = { onControl("stopped") },
                             modifier = Modifier

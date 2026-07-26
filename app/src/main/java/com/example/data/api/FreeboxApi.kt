@@ -238,7 +238,13 @@ data class DownloadTask(
     @Json(name = "rx_bytes") val downloadedSize: Long,
     @Json(name = "queue_pos") val queuePosition: Int,
     @Json(name = "rx_rate") val rxRate: Long? = 0L,
-    @Json(name = "tx_rate") val txRate: Long? = 0L
+    @Json(name = "tx_rate") val txRate: Long? = 0L,
+    @Json(name = "tx_bytes") val uploadedSize: Long? = 0L,
+    @Json(name = "stop_ratio") val stopRatio: Int? = 100,
+    @Json(name = "peers_connected") val peersConnected: Int? = 0,
+    @Json(name = "peers_total") val peersTotal: Int? = 0,
+    @Json(name = "seeds_connected") val seedsConnected: Int? = 0,
+    @Json(name = "seeds_total") val seedsTotal: Int? = 0
 )
 
 @JsonClass(generateAdapter = true)
