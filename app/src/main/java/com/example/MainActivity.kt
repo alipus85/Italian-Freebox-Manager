@@ -1858,15 +1858,6 @@ fun SettingsScreen(
                     Text("Tempo di attività", fontSize = 13.sp)
                     Text(uiState.systemUptime, fontSize = 13.sp, fontWeight = FontWeight.Medium)
                 }
-                HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text("Connesso da", fontSize = 13.sp)
-                    Text(uiState.internetConnectionTime, fontSize = 13.sp, fontWeight = FontWeight.Medium)
-                }
             }
         }
 
