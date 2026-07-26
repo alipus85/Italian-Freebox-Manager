@@ -2532,7 +2532,8 @@ fun DownloadTaskCard(
                             isStopped -> Triple("⏸️", "In pausa", Color(0xFFE65100))
                             isDownloading -> {
                                 val rateStr = if ((task.rxRate ?: 0L) > 0L) " (${formatBytes(task.rxRate!!)}/s)" else ""
-                                Triple("⚡", "Download in corso$rateStr", MaterialTheme.colorScheme.primary)
+                                val etaStr = if (task.formattedEta != null) " • ⏱️ ${task.formattedEta}" else ""
+                                Triple("⚡", "Download in corso$rateStr$etaStr", MaterialTheme.colorScheme.primary)
                             }
                             isChecking -> Triple("🔍", "Controllo file in corso...", Color(0xFF0288D1))
                             task.status.contains("error", ignoreCase = true) -> Triple("❌", "Errore: ${task.status}", MaterialTheme.colorScheme.error)
@@ -2581,24 +2582,24 @@ fun DownloadTaskCard(
                 }
             }
 
-            // Torrent Seeds / Peers and Health indicator badge
-            val seedsConn = task.seedsConnected ?: 0
-            val seedsTot = task.seedsTotal ?: 0
-            val peersConn = task.peersConnected ?: 0
-            val peersTot = task.peersTotal ?: 0
+            // Torrent Seeds / Peers display
+            val seedsConn = task.seedsConn
+            val seedsTot = task.seedsTot
+            val peersConn = task.peersConn
+            val peersTot = task.peersTot
 
-            val (healthText, healthColor, healthBg) = when {
-                seedsConn >= 5 || seedsTot >= 10 -> Triple("Torrent Ottimo", Color(0xFF2E7D32), Color(0xFF1B5E20).copy(alpha = 0.15f))
-                seedsConn > 0 || seedsTot >= 1 -> Triple("Torrent Buono", Color(0xFF388E3C), Color(0xFF388E3C).copy(alpha = 0.15f))
-                peersConn > 0 || peersTot > 0 -> Triple("Pochi Seed", Color(0xFFE65100), Color(0xFFE65100).copy(alpha = 0.15f))
-                else -> Triple("Nessun Seed (Scartare)", Color(0xFFC62828), Color(0xFFC62828).copy(alpha = 0.18f))
+            val (healthText, healthColor) = when {
+                seedsConn >= 5 || seedsTot >= 10 -> Pair("Torrent Ottimo", Color(0xFF2E7D32))
+                seedsConn > 0 || seedsTot >= 1 -> Pair("Torrent Buono", Color(0xFF388E3C))
+                peersConn > 0 || peersTot > 0 -> Pair("In ricerca Seed", Color(0xFFE65100))
+                else -> Pair(null, Color.Transparent)
             }
 
             Spacer(modifier = Modifier.height(8.dp))
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(healthBg, RoundedCornerShape(8.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f), RoundedCornerShape(8.dp))
                     .padding(horizontal = 10.dp, vertical = 6.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
@@ -2617,17 +2618,19 @@ fun DownloadTaskCard(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-                Surface(
-                    shape = RoundedCornerShape(6.dp),
-                    color = healthColor
-                ) {
-                    Text(
-                        text = healthText,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White,
-                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                    )
+                if (healthText != null) {
+                    Surface(
+                        shape = RoundedCornerShape(6.dp),
+                        color = healthColor
+                    ) {
+                        Text(
+                            text = healthText,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
                 }
             }
 
@@ -2665,7 +2668,10 @@ fun DownloadTaskCard(
                         "${formatBytes(task.downloadedSize)} di ${formatBytes(task.size)} (Seeding $seedingDisplayPercent%$upInfo)"
                     }
                     isDone -> "${formatBytes(task.downloadedSize)} di ${formatBytes(task.size)} (100%)"
-                    else -> "${formatBytes(task.downloadedSize)} di ${formatBytes(task.size)} ($progressPercent%)"
+                    else -> {
+                        val etaSuffix = if (isDownloading && task.formattedEta != null) " • ETA: ${task.formattedEta}" else ""
+                        "${formatBytes(task.downloadedSize)} di ${formatBytes(task.size)} ($progressPercent%$etaSuffix)"
+                    }
                 }
 
                 Text(

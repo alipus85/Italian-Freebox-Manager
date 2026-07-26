@@ -243,9 +243,46 @@ data class DownloadTask(
     @Json(name = "stop_ratio") val stopRatio: Int? = 100,
     @Json(name = "peers_connected") val peersConnected: Int? = 0,
     @Json(name = "peers_total") val peersTotal: Int? = 0,
+    @Json(name = "peers_seeders") val peersSeeders: Int? = 0,
+    @Json(name = "peers_leechers") val peersLeechers: Int? = 0,
     @Json(name = "seeds_connected") val seedsConnected: Int? = 0,
-    @Json(name = "seeds_total") val seedsTotal: Int? = 0
-)
+    @Json(name = "seeds_total") val seedsTotal: Int? = 0,
+    @Json(name = "eta") val etaSeconds: Long? = null
+) {
+    val seedsConn: Int
+        get() = (seedsConnected?.takeIf { it > 0 } ?: peersSeeders?.takeIf { it > 0 } ?: 0)
+
+    val seedsTot: Int
+        get() = (seedsTotal?.takeIf { it > 0 } ?: seedsConn)
+
+    val peersConn: Int
+        get() = (peersConnected?.takeIf { it > 0 } ?: 0)
+
+    val peersTot: Int
+        get() = (peersTotal?.takeIf { it > 0 } ?: peersLeechers?.takeIf { it > 0 } ?: 0)
+
+    val formattedEta: String?
+        get() {
+            val seconds = if (etaSeconds != null && etaSeconds > 0) {
+                etaSeconds
+            } else if ((rxRate ?: 0L) > 0L && downloadedSize < size) {
+                (size - downloadedSize) / rxRate!!
+            } else {
+                null
+            } ?: return null
+
+            if (seconds <= 0) return null
+            val hours = seconds / 3600
+            val minutes = (seconds % 3600) / 60
+            val secs = seconds % 60
+            return when {
+                hours > 48 -> "> 2 giorni"
+                hours > 0 -> "${hours}h ${minutes}m"
+                minutes > 0 -> "${minutes}m ${secs}s"
+                else -> "${secs}s"
+            }
+        }
+}
 
 @JsonClass(generateAdapter = true)
 data class DiskPartition(

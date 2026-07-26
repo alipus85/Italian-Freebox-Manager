@@ -919,6 +919,11 @@ Yu11tlZsB2Iw/TT1EyPVb5z6tK4wUgWLNFAvjXU=
     suspend fun getDownloads(): Result<List<DownloadTask>> = withContext(Dispatchers.IO) {
         if (_isSimulated.value) {
             val updated = simulatedDownloadTasks.value.map { task ->
+                val curSeedsConn = if ((task.seedsConnected ?: 0) > 0) task.seedsConnected else (5..25).random()
+                val curSeedsTot = if ((task.seedsTotal ?: 0) > 0) task.seedsTotal else (40..150).random()
+                val curPeersConn = if ((task.peersConnected ?: 0) > 0) task.peersConnected else (10..50).random()
+                val curPeersTot = if ((task.peersTotal ?: 0) > 0) task.peersTotal else (50..250).random()
+
                 if (task.status == "downloading") {
                     val addSpeed = (3_000_000..12_000_000).random().toLong() // 3-12 MB/s
                     val newDownloaded = (task.downloadedSize + addSpeed).coerceAtMost(task.size)
@@ -929,7 +934,11 @@ Yu11tlZsB2Iw/TT1EyPVb5z6tK4wUgWLNFAvjXU=
                         downloadedSize = newDownloaded,
                         status = newStatus,
                         rxRate = rx,
-                        txRate = tx
+                        txRate = tx,
+                        seedsConnected = curSeedsConn,
+                        seedsTotal = curSeedsTot,
+                        peersConnected = curPeersConn,
+                        peersTotal = curPeersTot
                     )
                 } else if (task.status.contains("seeding", ignoreCase = true) || task.status.contains("seed", ignoreCase = true)) {
                     val addUpSpeed = (200_000..600_000).random().toLong()
@@ -938,10 +947,21 @@ Yu11tlZsB2Iw/TT1EyPVb5z6tK4wUgWLNFAvjXU=
                         downloadedSize = task.size,
                         uploadedSize = newUploaded,
                         rxRate = 0L,
-                        txRate = addUpSpeed
+                        txRate = addUpSpeed,
+                        seedsConnected = curSeedsConn,
+                        seedsTotal = curSeedsTot,
+                        peersConnected = curPeersConn,
+                        peersTotal = curPeersTot
                     )
                 } else {
-                    task.copy(rxRate = 0L, txRate = 0L)
+                    task.copy(
+                        rxRate = 0L,
+                        txRate = 0L,
+                        seedsConnected = curSeedsConn,
+                        seedsTotal = curSeedsTot,
+                        peersConnected = curPeersConn,
+                        peersTotal = curPeersTot
+                    )
                 }
             }
             simulatedDownloadTasks.value = updated
@@ -1084,7 +1104,11 @@ Yu11tlZsB2Iw/TT1EyPVb5z6tK4wUgWLNFAvjXU=
                 status = "downloading",
                 size = 150_000_000L + (10_000_000L..1_000_000_000L).random(),
                 downloadedSize = 0L,
-                queuePosition = simulatedDownloadTasks.value.size + 1
+                queuePosition = simulatedDownloadTasks.value.size + 1,
+                seedsConnected = (6..28).random(),
+                seedsTotal = (45..160).random(),
+                peersConnected = (12..55).random(),
+                peersTotal = (55..240).random()
             )
             simulatedDownloadTasks.value = simulatedDownloadTasks.value + newTask
             return@withContext Result.success(newTask)
@@ -1174,7 +1198,11 @@ Yu11tlZsB2Iw/TT1EyPVb5z6tK4wUgWLNFAvjXU=
                 status = "downloading",
                 size = 150_000_000L + (10_000_000L..1_000_000_000L).random(),
                 downloadedSize = 0L,
-                queuePosition = simulatedDownloadTasks.value.size + 1
+                queuePosition = simulatedDownloadTasks.value.size + 1,
+                seedsConnected = (6..28).random(),
+                seedsTotal = (45..160).random(),
+                peersConnected = (12..55).random(),
+                peersTotal = (55..240).random()
             )
             simulatedDownloadTasks.value = simulatedDownloadTasks.value + newTask
             return@withContext Result.success(newTask)
