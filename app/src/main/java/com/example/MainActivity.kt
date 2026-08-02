@@ -496,7 +496,8 @@ fun RenderScreenContent(
         AppScreen.DOWNLOADS -> DownloadsScreen(uiState, viewModel)
         AppScreen.SETTINGS -> SettingsScreen(
             uiState = uiState,
-            viewModel = viewModel
+            viewModel = viewModel,
+            onRebootRequest = onRebootRequest
         )
     }
 }
@@ -1327,7 +1328,8 @@ fun FileRow(
 @Composable
 fun SettingsScreen(
     uiState: FreeboxUiState,
-    viewModel: FreeboxViewModel
+    viewModel: FreeboxViewModel,
+    onRebootRequest: () -> Unit = { viewModel.rebootBox() }
 ) {
     var boxUrlInput by remember { mutableStateOf(uiState.boxUrl) }
 
@@ -1876,7 +1878,7 @@ fun SettingsScreen(
 
         // Impostazioni di Sistema
         Button(
-            onClick = { viewModel.rebootBox() },
+            onClick = { onRebootRequest() },
             modifier = Modifier.fillMaxWidth(),
             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primaryContainer, contentColor = MaterialTheme.colorScheme.onPrimaryContainer),
             shape = RoundedCornerShape(100.dp)

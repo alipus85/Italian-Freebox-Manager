@@ -21,7 +21,21 @@ data class AuthorizeRequest(
     @Json(name = "app_id") val appId: String,
     @Json(name = "app_name") val appName: String,
     @Json(name = "app_version") val appVersion: String,
-    @Json(name = "device_name") val deviceName: String
+    @Json(name = "device_name") val deviceName: String,
+    @Json(name = "permissions") val permissions: Map<String, Boolean>? = mapOf(
+        "settings" to true,
+        "contacts" to true,
+        "calls" to true,
+        "explorer" to true,
+        "downloader" to true,
+        "parental" to true,
+        "pvr" to true,
+        "notifications" to true,
+        "profile" to true,
+        "camera" to true,
+        "tv" to true,
+        "wifi" to true
+    )
 )
 
 @JsonClass(generateAdapter = true)
@@ -371,6 +385,12 @@ interface FreeboxApi {
 
     @POST("api/v3/system/reboot/")
     suspend fun rebootSystem(@Header("X-Fbx-App-Auth") sessionToken: String): Response<CommonResponse>
+
+    @POST
+    suspend fun rebootSystemWithUrl(
+        @Url url: String,
+        @Header("X-Fbx-App-Auth") sessionToken: String
+    ): Response<CommonResponse>
 
     @GET("api/v8/system/")
     suspend fun getSystemConfig(@Header("X-Fbx-App-Auth") sessionToken: String): Response<SystemConfigResponse>

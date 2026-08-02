@@ -759,19 +759,60 @@ Yu11tlZsB2Iw/TT1EyPVb5z6tK4wUgWLNFAvjXU=
             return@withContext Result.success(true)
         }
 
-        val token = currentSessionToken ?: return@withContext Result.failure(Exception("No active session"))
-        val service = apiService ?: return@withContext Result.failure(Exception("Service not initialized"))
+        val token = currentSessionToken ?: return@withContext Result.failure(Exception("Nessuna sessione attiva. Effettua prima il login."))
+        val service = apiService ?: return@withContext Result.failure(Exception("Servizio API non inizializzato"))
 
-        try {
-            val response = service.rebootSystem(token)
-            if (response.isSuccessful && response.body()?.success == true) {
-                Result.success(true)
-            } else {
-                Result.failure(Exception("Failed to reboot box: ${response.body()?.msg}"))
+        val majorVersion = _discoveredApiVersionMajor.value
+        val candidatePaths = listOfNotNull(
+            if (majorVersion.isNotBlank()) "api/v${majorVersion}/system/reboot/" else null,
+            "api/v8/system/reboot/",
+            "api/v4/system/reboot/",
+            "api/v3/system/reboot/",
+            "api/v3/system/reboot"
+        ).distinct()
+
+        var lastErrorMessage = ""
+        var isPermissionError = false
+
+        for (path in candidatePaths) {
+            try {
+                val response = service.rebootSystemWithUrl(path, token)
+                if (response.isSuccessful) {
+                    val body = response.body()
+                    if (body?.success == true) {
+                        return@withContext Result.success(true)
+                    } else if (body != null) {
+                        lastErrorMessage = body.msg ?: "success = false"
+                        if (body.errorCode == "insufficient_rights" || (body.msg != null && (body.msg.contains("right", ignoreCase = true) || body.msg.contains("permess", ignoreCase = true)))) {
+                            isPermissionError = true
+                            break
+                        }
+                    }
+                } else {
+                    val errCode = response.code()
+                    val errorBodyStr = response.errorBody()?.string() ?: ""
+                    Log.e("FreeboxRepository", "Reboot attempt $path failed code $errCode: $errorBodyStr")
+                    if (errCode == 403 || errorBodyStr.contains("insufficient_rights") || errorBodyStr.contains("permission")) {
+                        isPermissionError = true
+                        lastErrorMessage = "Permessi insufficienti (insufficient_rights)"
+                        break
+                    } else if (errCode != 404) {
+                        lastErrorMessage = "Errore HTTP $errCode"
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("FreeboxRepository", "Reboot exception on $path: ${e.message}")
+                lastErrorMessage = e.message ?: "Errore di connessione"
             }
-        } catch (e: Exception) {
-            Result.failure(e)
         }
+
+        if (isPermissionError) {
+            return@withContext Result.failure(
+                Exception("Permesso negato dall'Iliadbox/Freebox. Abilita il permesso 'Modifica delle impostazioni' per l'applicazione nell'interfaccia web della Box (Parametri > Gestione accessi > Applicazioni).")
+            )
+        }
+
+        Result.failure(Exception(if (lastErrorMessage.isNotBlank()) "Riavvio fallito: $lastErrorMessage" else "Impossibile inviare il comando di riavvio al Box."))
     }
 
     suspend fun getSystemConfig(): Result<SystemConfigResult> = withContext(Dispatchers.IO) {
