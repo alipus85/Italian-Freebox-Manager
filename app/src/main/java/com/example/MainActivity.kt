@@ -2069,13 +2069,16 @@ fun HandshakeStep(
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .height(IntrinsicSize.Min)
             .padding(vertical = 4.dp),
         horizontalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         // Step indicator circle/line
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.width(32.dp)
+            modifier = Modifier
+                .width(32.dp)
+                .fillMaxHeight()
         ) {
             Box(
                 modifier = Modifier
@@ -2107,7 +2110,8 @@ fun HandshakeStep(
                 Box(
                     modifier = Modifier
                         .width(2.dp)
-                        .height(80.dp)
+                        .weight(1f)
+                        .padding(vertical = 4.dp)
                         .background(
                             if (isCompleted) Color(0xFF4CAF50).copy(alpha = 0.5f) else MaterialTheme.colorScheme.outlineVariant
                         )
@@ -2126,20 +2130,25 @@ fun HandshakeStep(
                     text = title,
                     fontWeight = FontWeight.Bold,
                     fontSize = 14.sp,
-                    color = if (isActive || isCompleted) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
+                    color = if (isActive || isCompleted) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(end = 8.dp)
                 )
                 if (statusText.isNotEmpty()) {
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(100.dp))
                             .background(statusColor.copy(alpha = 0.15f))
-                            .padding(horizontal = 8.dp, vertical = 2.dp)
+                            .padding(horizontal = 10.dp, vertical = 4.dp)
                     ) {
                         Text(
                             text = statusText,
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Bold,
-                            color = statusColor
+                            color = statusColor,
+                            maxLines = 1,
+                            softWrap = false
                         )
                     }
                 }
@@ -2335,9 +2344,12 @@ fun IliadBottomBar(
                 label = {
                     Text(
                         text = item.second,
-                        fontSize = 10.sp,
+                        fontSize = 9.5.sp,
                         fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-                        color = if (selected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
+                        color = if (selected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Ellipsis
                     )
                 },
                 colors = NavigationBarItemDefaults.colors(
