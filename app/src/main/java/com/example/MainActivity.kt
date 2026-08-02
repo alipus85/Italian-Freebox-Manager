@@ -2609,6 +2609,8 @@ fun DownloadTaskCard(
     val seedingRatioPercent = (ratio * 100).toInt()
     val seedingDisplayPercent = if (seedingRatioPercent > 0) seedingRatioPercent else 100
 
+    val cleanTaskName = task.name.trim().replace(Regex("[\\r\\n]+"), " ")
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -2622,7 +2624,7 @@ fun DownloadTaskCard(
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Top
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(
                     modifier = Modifier
@@ -2630,7 +2632,7 @@ fun DownloadTaskCard(
                         .clickable { onToggleExpand() }
                 ) {
                     Text(
-                        text = task.name,
+                        text = cleanTaskName,
                         fontWeight = FontWeight.Bold,
                         fontSize = 14.sp,
                         color = MaterialTheme.colorScheme.onSurface,
@@ -2638,7 +2640,10 @@ fun DownloadTaskCard(
                         overflow = TextOverflow.Ellipsis
                     )
                     Spacer(modifier = Modifier.height(4.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
                         val (statusEmoji, statusText, statusColor) = when {
                             isSeeding -> {
                                 val rateStr = if ((task.txRate ?: 0L) > 0L) " (${formatBytes(task.txRate!!)}/s)" else ""
@@ -2660,7 +2665,10 @@ fun DownloadTaskCard(
                             text = "$statusEmoji $statusText",
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Medium,
-                            color = statusColor
+                            color = statusColor,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false)
                         )
 
                         Text(
@@ -2671,7 +2679,10 @@ fun DownloadTaskCard(
                     }
                 }
 
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
                     IconButton(
                         onClick = onToggleExpand,
                         modifier = Modifier.size(36.dp)
@@ -2792,10 +2803,15 @@ fun DownloadTaskCard(
 
                 Text(
                     text = statsText,
-                    fontSize = 12.sp,
+                    fontSize = 11.sp,
                     color = if (isSeeding) Color(0xFF00897B) else MaterialTheme.colorScheme.onSurfaceVariant,
                     fontWeight = if (isSeeding) FontWeight.SemiBold else FontWeight.Normal,
-                    fontFamily = FontFamily.Monospace
+                    fontFamily = FontFamily.Monospace,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(end = 8.dp)
                 )
 
                 // Control action buttons (Play/Pause)
@@ -2874,11 +2890,12 @@ fun DownloadFileRow(file: com.example.data.api.DownloadFile) {
     val fileProgress = if (file.size > 0L) file.rx.toFloat() / file.size else 0f
     val filePercent = (fileProgress * 100).toInt().coerceIn(0, 100)
     val isFileDone = file.status == "done" || file.rx >= file.size
+    val cleanFileName = file.name.trim().replace(Regex("[\\r\\n]+"), " ")
 
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 4.dp, horizontal = 8.dp)
+            .padding(vertical = 4.dp, horizontal = 4.dp)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -2886,13 +2903,15 @@ fun DownloadFileRow(file: com.example.data.api.DownloadFile) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Row(
-                modifier = Modifier.weight(1f),
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(end = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Text(getFileIcon(file.name, file.mimetype), fontSize = 16.sp)
+                Text(getFileIcon(cleanFileName, file.mimetype), fontSize = 16.sp)
                 Text(
-                    text = file.name,
+                    text = cleanFileName,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Medium,
                     color = MaterialTheme.colorScheme.onSurface,
