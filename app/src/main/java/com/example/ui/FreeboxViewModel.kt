@@ -27,6 +27,13 @@ enum class ConnectionState {
     ERROR
 }
 
+enum class PairingDialogState {
+    HIDDEN,
+    WAITING,
+    SUCCESS,
+    FAILURE
+}
+
 data class FreeboxUiState(
     val currentScreen: AppScreen = AppScreen.HOME,
     val boxUrl: String = "http://myiliadbox.iliad.it/",
@@ -44,6 +51,8 @@ data class FreeboxUiState(
     val sessionToken: String = "",
     val connectionTesting: Boolean = false,
     val testedApiVersion: String? = null,
+    val pairingDialogState: PairingDialogState = PairingDialogState.HIDDEN,
+    val pairingDialogMessage: String? = null,
 
     // Connection statistics
     val mediaType: String = "Fiber 5G",
@@ -502,9 +511,22 @@ class FreeboxViewModel(application: Application) : AndroidViewModel(application)
     }
 
 
+    fun dismissPairingDialog() {
+        authPollingJob?.cancel()
+        _uiState.update { it.copy(pairingDialogState = PairingDialogState.HIDDEN) }
+    }
+
     fun registerApp() {
         viewModelScope.launch {
-            _uiState.update { it.copy(isBusy = true, error = null, feedback = "Avvio della registrazione dell'applicazione...") }
+            _uiState.update {
+                it.copy(
+                    isBusy = true,
+                    error = null,
+                    pairingDialogState = PairingDialogState.WAITING,
+                    pairingDialogMessage = "Inviata richiesta al router...\n\nGuarda lo schermo della tua Iliadbox/Freebox e premi 'SÌ' o la freccia verde per autorizzare l'applicazione.",
+                    feedback = "Avvio della registrazione dell'applicazione..."
+                )
+            }
             // Applica l'URL corrente al repository
             repository.setBoxUrl(_uiState.value.boxUrl)
 
@@ -515,7 +537,9 @@ class FreeboxViewModel(application: Application) : AndroidViewModel(application)
                         isBusy = false,
                         connectionState = ConnectionState.PENDING_BOX_AUTH,
                         trackId = authResult.trackId,
-                        feedback = "Guarda lo schermo della tua ItalianFreebox/Freebox e premi SÌ per autorizzare questa app!"
+                        pairingDialogState = PairingDialogState.WAITING,
+                        pairingDialogMessage = "In attesa di conferma sulla Iliadbox...\n\nTocca 'SÌ' o la freccia verde sul display del router per autorizzare questa applicazione.",
+                        feedback = "Guarda lo schermo della tua Iliadbox/Freebox e premi SÌ per autorizzare questa app!"
                     )
                 }
                 startAuthPolling()
@@ -524,6 +548,8 @@ class FreeboxViewModel(application: Application) : AndroidViewModel(application)
                     it.copy(
                         isBusy = false,
                         connectionState = ConnectionState.ERROR,
+                        pairingDialogState = PairingDialogState.FAILURE,
+                        pairingDialogMessage = "Richiesta di registrazione fallita: ${ex.message}",
                         error = "Registrazione fallita: ${ex.message}"
                     )
                 }
@@ -533,32 +559,74 @@ class FreeboxViewModel(application: Application) : AndroidViewModel(application)
 
     fun checkAuthStatus() {
         viewModelScope.launch {
-            _uiState.update { it.copy(isBusy = true, error = null) }
+            _uiState.update { it.copy(isBusy = true, error = null, pairingDialogState = PairingDialogState.WAITING) }
             val result = repository.checkAuthorizationStatus()
             result.onSuccess { status ->
                 _uiState.update { it.copy(isBusy = false, authStatus = status) }
                 when (status) {
                     "granted" -> {
-                        _uiState.update { it.copy(feedback = "App autorizzata con successo! Accesso in corso...") }
+                        _uiState.update {
+                            it.copy(
+                                pairingDialogState = PairingDialogState.SUCCESS,
+                                pairingDialogMessage = "Associazione completata con successo!\nL'Iliadbox/Freebox ha autorizzato l'applicazione.",
+                                feedback = "App autorizzata con successo! Accesso in corso..."
+                            )
+                        }
                         authPollingJob?.cancel()
                         repository.switchToDiscoveredUrl()
                         login()
                     }
                     "pending" -> {
-                        _uiState.update { it.copy(feedback = "Ancora in attesa. Autorizza l'applicazione sullo schermo touch del Box.") }
+                        _uiState.update {
+                            it.copy(
+                                pairingDialogState = PairingDialogState.WAITING,
+                                pairingDialogMessage = "Ancora in attesa. Tocca 'SÌ' o la freccia verde sul display del router.",
+                                feedback = "Ancora in attesa. Autorizza l'applicazione sullo schermo touch del Box."
+                            )
+                        }
                     }
                     "timeout" -> {
-                        _uiState.update { it.copy(connectionState = ConnectionState.ERROR, error = "Tempo scaduto per l'autorizzazione. Riprova.") }
+                        _uiState.update {
+                            it.copy(
+                                connectionState = ConnectionState.ERROR,
+                                pairingDialogState = PairingDialogState.FAILURE,
+                                pairingDialogMessage = "Tempo scaduto per la conferma sul display della Iliadbox.",
+                                error = "Tempo scaduto per l'autorizzazione. Riprova."
+                            )
+                        }
+                        authPollingJob?.cancel()
+                    }
+                    "denied" -> {
+                        _uiState.update {
+                            it.copy(
+                                connectionState = ConnectionState.ERROR,
+                                pairingDialogState = PairingDialogState.FAILURE,
+                                pairingDialogMessage = "Associazione negata o rifiutata sul display della Iliadbox.",
+                                error = "Autorizzazione negata dal router."
+                            )
+                        }
                         authPollingJob?.cancel()
                     }
                     else -> {
-                        _uiState.update { it.copy(connectionState = ConnectionState.ERROR, error = "Autorizzazione negata o scaduta ($status).") }
+                        _uiState.update {
+                            it.copy(
+                                connectionState = ConnectionState.ERROR,
+                                pairingDialogState = PairingDialogState.FAILURE,
+                                pairingDialogMessage = "Autorizzazione negata o scaduta ($status).",
+                                error = "Autorizzazione negata o scaduta ($status)."
+                            )
+                        }
                         authPollingJob?.cancel()
                     }
                 }
             }.onFailure { ex ->
                 _uiState.update {
-                    it.copy(isBusy = false, error = "Impossibile verificare lo stato del box: ${ex.message}")
+                    it.copy(
+                        isBusy = false,
+                        pairingDialogState = PairingDialogState.FAILURE,
+                        pairingDialogMessage = "Impossibile verificare lo stato: ${ex.message}",
+                        error = "Impossibile verificare lo stato del box: ${ex.message}"
+                    )
                 }
             }
         }
@@ -569,21 +637,49 @@ class FreeboxViewModel(application: Application) : AndroidViewModel(application)
         authPollingJob = viewModelScope.launch {
             var attempts = 0
             while (attempts < 60) { // Sondaggio per un massimo di 5 minuti
-                delay(5000)
+                delay(4000)
                 attempts++
                 val result = repository.checkAuthorizationStatus()
                 if (result.isSuccess) {
                     val status = result.getOrNull()
                     _uiState.update { it.copy(authStatus = status ?: "") }
                     if (status == "granted") {
-                        _uiState.update { it.copy(feedback = "App autorizzata con successo! Accesso in corso...") }
+                        _uiState.update {
+                            it.copy(
+                                pairingDialogState = PairingDialogState.SUCCESS,
+                                pairingDialogMessage = "Associazione completata con successo!\nL'Iliadbox/Freebox ha autorizzato l'applicazione.",
+                                feedback = "App autorizzata con successo! Accesso in corso..."
+                            )
+                        }
                         repository.switchToDiscoveredUrl()
                         login()
                         break
                     } else if (status != "pending") {
-                        _uiState.update { it.copy(connectionState = ConnectionState.ERROR, error = "Registrazione interrotta: lo stato è $status") }
+                        val errMsg = when (status) {
+                            "denied" -> "Associazione negata dall'utente sul display della Iliadbox."
+                            "timeout" -> "Tempo scaduto per la conferma sul display della Iliadbox."
+                            else -> "Registrazione interrotta: stato $status"
+                        }
+                        _uiState.update {
+                            it.copy(
+                                connectionState = ConnectionState.ERROR,
+                                pairingDialogState = PairingDialogState.FAILURE,
+                                pairingDialogMessage = errMsg,
+                                error = errMsg
+                            )
+                        }
                         break
                     }
+                }
+            }
+            if (attempts >= 60 && _uiState.value.pairingDialogState == PairingDialogState.WAITING) {
+                _uiState.update {
+                    it.copy(
+                        connectionState = ConnectionState.ERROR,
+                        pairingDialogState = PairingDialogState.FAILURE,
+                        pairingDialogMessage = "Tempo massimo di attesa scaduto (5 minuti). Riprova la richiesta di associazione.",
+                        error = "Tempo massimo di attesa per l'associazione scaduto."
+                    )
                 }
             }
         }

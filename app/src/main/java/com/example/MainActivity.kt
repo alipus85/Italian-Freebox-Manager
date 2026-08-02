@@ -180,6 +180,94 @@ fun MainAppContainer() {
         )
     }
 
+    if (uiState.pairingDialogState != PairingDialogState.HIDDEN) {
+        AlertDialog(
+            onDismissRequest = { viewModel.dismissPairingDialog() },
+            icon = {
+                when (uiState.pairingDialogState) {
+                    PairingDialogState.WAITING -> {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(36.dp),
+                            color = MaterialTheme.colorScheme.primary,
+                            strokeWidth = 3.dp
+                        )
+                    }
+                    PairingDialogState.SUCCESS -> {
+                        Icon(
+                            imageVector = Icons.Default.CheckCircle,
+                            contentDescription = "Successo",
+                            tint = Color(0xFF2E7D32),
+                            modifier = Modifier.size(48.dp)
+                        )
+                    }
+                    PairingDialogState.FAILURE -> {
+                        Icon(
+                            imageVector = Icons.Default.Warning,
+                            contentDescription = "Errore",
+                            tint = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.size(48.dp)
+                        )
+                    }
+                    else -> {}
+                }
+            },
+            title = {
+                Text(
+                    text = when (uiState.pairingDialogState) {
+                        PairingDialogState.WAITING -> "In attesa di conferma..."
+                        PairingDialogState.SUCCESS -> "Associazione Completata!"
+                        PairingDialogState.FAILURE -> "Associazione Fallita"
+                        else -> ""
+                    },
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp
+                )
+            },
+            text = {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = uiState.pairingDialogMessage ?: when (uiState.pairingDialogState) {
+                            PairingDialogState.WAITING -> "Guarda il display del router Iliadbox/Freebox e premi SÌ o la freccia verde per autorizzare l'applicazione."
+                            PairingDialogState.SUCCESS -> "L'applicazione è stata autorizzata con successo dalla tua Iliadbox!"
+                            PairingDialogState.FAILURE -> "Impossibile completare l'associazione. Verifica di essere connesso al Wi-Fi locale e riprova."
+                            else -> ""
+                        },
+                        fontSize = 14.sp,
+                        textAlign = TextAlign.Center,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            },
+            confirmButton = {
+                when (uiState.pairingDialogState) {
+                    PairingDialogState.WAITING -> {
+                        TextButton(onClick = { viewModel.dismissPairingDialog() }) {
+                            Text("Annulla")
+                        }
+                    }
+                    PairingDialogState.SUCCESS -> {
+                        Button(
+                            onClick = { viewModel.dismissPairingDialog() },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32))
+                        ) {
+                            Text("OK, Continua")
+                        }
+                    }
+                    PairingDialogState.FAILURE -> {
+                        Button(onClick = { viewModel.dismissPairingDialog() }) {
+                            Text("Chiudi")
+                        }
+                    }
+                    else -> {}
+                }
+            }
+        )
+    }
+
     if (showAddDownloadDialog) {
         val clipboardManager = androidx.compose.ui.platform.LocalClipboardManager.current
         AlertDialog(
