@@ -244,10 +244,23 @@ data class ControlDownloadBody(
 )
 
 @JsonClass(generateAdapter = true)
+data class DownloadBtInfo(
+    @Json(name = "peers_connected") val peersConnected: Int? = 0,
+    @Json(name = "peers_total") val peersTotal: Int? = 0,
+    @Json(name = "peers_seeders") val peersSeeders: Int? = 0,
+    @Json(name = "peers_leechers") val peersLeechers: Int? = 0,
+    @Json(name = "seeders") val seeders: Int? = 0,
+    @Json(name = "leechers") val leechers: Int? = 0,
+    @Json(name = "seeds_connected") val seedsConnected: Int? = 0,
+    @Json(name = "seeds_total") val seedsTotal: Int? = 0
+)
+
+@JsonClass(generateAdapter = true)
 data class DownloadTask(
     @Json(name = "id") val id: Int,
     @Json(name = "name") val name: String,
     @Json(name = "status") val status: String, // "stopped", "downloading", "done", "error"
+    @Json(name = "type") val type: String? = "bt",
     @Json(name = "size") val size: Long,
     @Json(name = "rx_bytes") val downloadedSize: Long,
     @Json(name = "queue_pos") val queuePosition: Int,
@@ -255,25 +268,46 @@ data class DownloadTask(
     @Json(name = "tx_rate") val txRate: Long? = 0L,
     @Json(name = "tx_bytes") val uploadedSize: Long? = 0L,
     @Json(name = "stop_ratio") val stopRatio: Int? = 100,
+    @Json(name = "bt") val btInfo: DownloadBtInfo? = null,
     @Json(name = "peers_connected") val peersConnected: Int? = 0,
+    @Json(name = "peers_conn") val peersConnAlt: Int? = 0,
     @Json(name = "peers_total") val peersTotal: Int? = 0,
+    @Json(name = "peers_tot") val peersTotAlt: Int? = 0,
     @Json(name = "peers_seeders") val peersSeeders: Int? = 0,
+    @Json(name = "peers_sub") val peersSubAlt: Int? = 0,
     @Json(name = "peers_leechers") val peersLeechers: Int? = 0,
     @Json(name = "seeds_connected") val seedsConnected: Int? = 0,
+    @Json(name = "seeds_conn") val seedsConnAlt: Int? = 0,
     @Json(name = "seeds_total") val seedsTotal: Int? = 0,
+    @Json(name = "seeds_tot") val seedsTotAlt: Int? = 0,
     @Json(name = "eta") val etaSeconds: Long? = null
 ) {
+    val isTorrent: Boolean
+        get() = btInfo != null || type == null || type.isEmpty() || type.equals("bt", ignoreCase = true) || type.contains("torrent", ignoreCase = true) || (!type.equals("http", ignoreCase = true) && !type.equals("ftp", ignoreCase = true) && !type.equals("nzb", ignoreCase = true))
+
     val seedsConn: Int
-        get() = (seedsConnected?.takeIf { it > 0 } ?: peersSeeders?.takeIf { it > 0 } ?: 0)
+        get() = listOfNotNull(
+            seedsConnected, seedsConnAlt, peersSeeders, peersSubAlt,
+            btInfo?.seedsConnected, btInfo?.peersSeeders, btInfo?.seeders
+        ).firstOrNull { it > 0 } ?: 0
 
     val seedsTot: Int
-        get() = (seedsTotal?.takeIf { it > 0 } ?: seedsConn)
+        get() = listOfNotNull(
+            seedsTotal, seedsTotAlt,
+            btInfo?.seedsTotal
+        ).firstOrNull { it > 0 } ?: seedsConn
 
     val peersConn: Int
-        get() = (peersConnected?.takeIf { it > 0 } ?: 0)
+        get() = listOfNotNull(
+            peersConnected, peersConnAlt, peersLeechers,
+            btInfo?.peersConnected, btInfo?.peersLeechers, btInfo?.leechers
+        ).firstOrNull { it > 0 } ?: 0
 
     val peersTot: Int
-        get() = (peersTotal?.takeIf { it > 0 } ?: peersLeechers?.takeIf { it > 0 } ?: 0)
+        get() = listOfNotNull(
+            peersTotal, peersTotAlt,
+            btInfo?.peersTotal
+        ).firstOrNull { it > 0 } ?: (peersConn + seedsConn)
 
     val formattedEta: String?
         get() {

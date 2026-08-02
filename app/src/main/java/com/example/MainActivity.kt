@@ -2536,6 +2536,8 @@ fun DownloadsScreen(
             modifier = Modifier.padding(bottom = 8.dp)
         )
 
+        var taskToDelete by remember { mutableStateOf<com.example.data.api.DownloadTask?>(null) }
+
         Box(modifier = Modifier.weight(1f)) {
             if (uiState.downloadTasks.isEmpty()) {
                 Box(
@@ -2576,12 +2578,58 @@ fun DownloadsScreen(
                                 viewModel.controlDownloadTask(task.id, action)
                             },
                             onRemove = {
-                                viewModel.removeDownloadTask(task.id)
+                                taskToDelete = task
                             }
                         )
                     }
                 }
             }
+        }
+
+        if (taskToDelete != null) {
+            AlertDialog(
+                onDismissRequest = { taskToDelete = null },
+                icon = {
+                    Icon(
+                        imageVector = Icons.Default.Delete,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.error
+                    )
+                },
+                title = {
+                    Text(
+                        text = "Conferma eliminazione",
+                        fontWeight = FontWeight.Bold
+                    )
+                },
+                text = {
+                    Text(
+                        text = "Sei sicuro di voler eliminare il download '${taskToDelete?.name}' dalla coda della Freebox?",
+                        fontSize = 14.sp
+                    )
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            val id = taskToDelete?.id
+                            taskToDelete = null
+                            if (id != null) {
+                                viewModel.removeDownloadTask(id)
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                    ) {
+                        Text("Elimina", color = MaterialTheme.colorScheme.onError)
+                    }
+                },
+                dismissButton = {
+                    TextButton(
+                        onClick = { taskToDelete = null }
+                    ) {
+                        Text("Annulla")
+                    }
+                }
+            )
         }
     }
 }
@@ -2709,59 +2757,7 @@ fun DownloadTaskCard(
                 }
             }
 
-            // Torrent Seeds / Peers display
-            val seedsConn = task.seedsConn
-            val seedsTot = task.seedsTot
-            val peersConn = task.peersConn
-            val peersTot = task.peersTot
-
-            val (healthText, healthColor) = when {
-                seedsConn >= 5 || seedsTot >= 10 -> Pair("Torrent Ottimo", Color(0xFF2E7D32))
-                seedsConn > 0 || seedsTot >= 1 -> Pair("Torrent Buono", Color(0xFF388E3C))
-                peersConn > 0 || peersTot > 0 -> Pair("In ricerca Seed", Color(0xFFE65100))
-                else -> Pair(null, Color.Transparent)
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f), RoundedCornerShape(8.dp))
-                    .padding(horizontal = 10.dp, vertical = 6.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = "🌱 Seed: $seedsConn/$seedsTot",
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Text(
-                        text = "   👥 Peer: $peersConn/$peersTot",
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Normal,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                if (healthText != null) {
-                    Surface(
-                        shape = RoundedCornerShape(6.dp),
-                        color = healthColor
-                    ) {
-                        Text(
-                            text = healthText,
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White,
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                        )
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
             // Progress bar and Percentage
             val progressBarColor = when {
@@ -2789,30 +2785,46 @@ fun DownloadTaskCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                val statsText = when {
-                    isSeeding -> {
-                        val upInfo = if ((task.uploadedSize ?: 0L) > 0L) " • Upload: ${formatBytes(task.uploadedSize!!)}" else ""
-                        "${formatBytes(task.downloadedSize)} di ${formatBytes(task.size)} (Seeding $seedingDisplayPercent%$upInfo)"
-                    }
-                    isDone -> "${formatBytes(task.downloadedSize)} di ${formatBytes(task.size)} (100%)"
-                    else -> {
-                        val etaSuffix = if (isDownloading && task.formattedEta != null) " • ETA: ${task.formattedEta}" else ""
-                        "${formatBytes(task.downloadedSize)} di ${formatBytes(task.size)} ($progressPercent%$etaSuffix)"
-                    }
-                }
-
-                Text(
-                    text = statsText,
-                    fontSize = 11.sp,
-                    color = if (isSeeding) Color(0xFF00897B) else MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontWeight = if (isSeeding) FontWeight.SemiBold else FontWeight.Normal,
-                    fontFamily = FontFamily.Monospace,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
+                Column(
                     modifier = Modifier
                         .weight(1f)
                         .padding(end = 8.dp)
-                )
+                ) {
+                    val mainStatsText = when {
+                        isSeeding -> "${formatBytes(task.downloadedSize)} di ${formatBytes(task.size)} (Seeding $seedingDisplayPercent%)"
+                        isDone -> "${formatBytes(task.downloadedSize)} di ${formatBytes(task.size)} (100%)"
+                        else -> "${formatBytes(task.downloadedSize)} di ${formatBytes(task.size)} ($progressPercent%)"
+                    }
+
+                    Text(
+                        text = mainStatsText,
+                        fontSize = 11.sp,
+                        color = if (isSeeding) Color(0xFF00897B) else MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontWeight = if (isSeeding) FontWeight.SemiBold else FontWeight.Normal,
+                        fontFamily = FontFamily.Monospace,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+
+                    val secondaryText = when {
+                        isSeeding && (task.uploadedSize ?: 0L) > 0L -> "Upload: ${formatBytes(task.uploadedSize!!)}"
+                        isDownloading && task.formattedEta != null -> "ETA: ${task.formattedEta}"
+                        else -> null
+                    }
+
+                    if (secondaryText != null) {
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = secondaryText,
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.Medium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
 
                 // Control action buttons (Play/Pause)
                 if (!isDone) {

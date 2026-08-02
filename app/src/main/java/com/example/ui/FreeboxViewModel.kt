@@ -472,11 +472,19 @@ class FreeboxViewModel(application: Application) : AndroidViewModel(application)
     fun controlDownloadTask(id: Int, status: String) {
         viewModelScope.launch {
             _uiState.update { it.copy(isBusy = true) }
-            val result = repository.controlDownload(id, status)
+            var result = repository.controlDownload(id, status)
+            if (status == "retry" && result.isFailure) {
+                // Fallback for firmwares that require stopping then resuming to restart
+                repository.controlDownload(id, "stopped")
+                result = repository.controlDownload(id, "downloading")
+            }
             _uiState.update { state ->
                 state.copy(
                     isBusy = false,
-                    error = result.exceptionOrNull()?.message
+                    error = if (result.isFailure) result.exceptionOrNull()?.message else null,
+                    feedback = if (result.isSuccess) {
+                        if (status == "retry") "Download riavviato dall'inizio" else "Stato download aggiornato"
+                    } else null
                 )
             }
             if (result.isSuccess) getDownloadTasks()
