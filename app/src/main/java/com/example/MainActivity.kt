@@ -1512,6 +1512,19 @@ fun SettingsScreen(
                         Text("Versione Principale API", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Text("v${uiState.discoveredApiVersionMajor}", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                     }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("Accesso Remoto HTTPS", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(
+                            if (uiState.discoveredHttpsAvailable) "Abilitato" else "Disabilitato (solo rete locale)",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (uiState.discoveredHttpsAvailable) Color(0xFF2E7D32) else Color(0xFFE65100)
+                        )
+                    }
                 }
             }
         }

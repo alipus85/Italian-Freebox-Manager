@@ -62,6 +62,7 @@ data class FreeboxUiState(
     val discoveredApiVersionMajor: String = "3",
     val discoveredDeviceName: String = "Freebox Server",
     val discoveredBoxModelName: String = "Freebox Server",
+    val discoveredHttpsAvailable: Boolean = false,
 
     // Files
     val files: List<com.example.data.api.FileInfo> = emptyList(),
@@ -135,8 +136,18 @@ class FreeboxViewModel(application: Application) : AndroidViewModel(application)
             }
         }
         viewModelScope.launch {
+            repository.boxUrl.collect { url ->
+                _uiState.update { it.copy(boxUrl = url) }
+            }
+        }
+        viewModelScope.launch {
             repository.discoveredBoxModelName.collect { value ->
                 _uiState.update { it.copy(discoveredBoxModelName = value) }
+            }
+        }
+        viewModelScope.launch {
+            repository.discoveredHttpsAvailable.collect { value ->
+                _uiState.update { it.copy(discoveredHttpsAvailable = value) }
             }
         }
 

@@ -79,6 +79,9 @@ class FreeboxRepository(private val context: Context) {
     private val _discoveredHttpsPort = MutableStateFlow(sharedPrefs.getInt("https_port", 0))
     val discoveredHttpsPort: StateFlow<Int> = _discoveredHttpsPort.asStateFlow()
 
+    private val _discoveredHttpsAvailable = MutableStateFlow(sharedPrefs.getBoolean("https_available", false))
+    val discoveredHttpsAvailable: StateFlow<Boolean> = _discoveredHttpsAvailable.asStateFlow()
+
     private var apiService: FreeboxApi? = null
     private var currentSessionToken: String? = null
 
@@ -169,6 +172,7 @@ class FreeboxRepository(private val context: Context) {
             .remove("discovered_box_model_name")
             .remove("api_domain")
             .remove("https_port")
+            .remove("https_available")
             .apply()
         _appToken.value = ""
         _trackId.value = -1
@@ -181,9 +185,19 @@ class FreeboxRepository(private val context: Context) {
         _discoveredBoxModelName.value = "Freebox Server"
         _discoveredApiDomain.value = ""
         _discoveredHttpsPort.value = 0
+        _discoveredHttpsAvailable.value = false
     }
 
-    fun setDiscoveredParams(baseUrl: String, majorVersion: String, deviceName: String, boxModelName: String, apiDomain: String?, httpsPort: Int?) {
+    fun setDiscoveredParams(
+        baseUrl: String,
+        majorVersion: String,
+        deviceName: String,
+        boxModelName: String,
+        apiDomain: String?,
+        httpsPort: Int?,
+        httpsAvailable: Boolean? = null
+    ) {
+        val isHttpsAvail = httpsAvailable ?: (apiDomain?.isNotBlank() == true && (httpsPort ?: 0) > 0)
         sharedPrefs.edit()
             .putString("api_base_url", baseUrl)
             .putString("api_version_major", majorVersion)
@@ -191,6 +205,7 @@ class FreeboxRepository(private val context: Context) {
             .putString("discovered_box_model_name", boxModelName)
             .putString("api_domain", apiDomain ?: "")
             .putInt("https_port", httpsPort ?: 0)
+            .putBoolean("https_available", isHttpsAvail)
             .apply()
         _discoveredApiBaseUrl.value = baseUrl
         _discoveredApiVersionMajor.value = majorVersion
@@ -198,15 +213,19 @@ class FreeboxRepository(private val context: Context) {
         _discoveredBoxModelName.value = boxModelName
         _discoveredApiDomain.value = apiDomain ?: ""
         _discoveredHttpsPort.value = httpsPort ?: 0
+        _discoveredHttpsAvailable.value = isHttpsAvail
     }
 
-    fun switchToDiscoveredUrl() {
+    fun switchToDiscoveredUrl(): Boolean {
         val domain = _discoveredApiDomain.value
         val port = _discoveredHttpsPort.value
-        if (domain.isNotEmpty() && port > 0) {
+        val isHttpsAvail = _discoveredHttpsAvailable.value
+        if (isHttpsAvail && domain.isNotBlank() && port > 0) {
             val newUrl = "https://$domain:$port/"
             setBoxUrl(newUrl)
+            return true
         }
+        return false
     }
 
     private val FREEBOX_ROOT_CAS = listOf(
@@ -366,7 +385,10 @@ Yu11tlZsB2Iw/TT1EyPVb5z6tK4wUgWLNFAvjXU=
             OkHttpClient.Builder()
                 .sslSocketFactory(sslContext.socketFactory, combinedTrustManager)
                 .hostnameVerifier { hostname, session ->
-                    if (hostname == "mafreebox.freebox.fr" || hostname == "myiliadbox.iliad.it" || hostname.endsWith(".fbxos.fr") || hostname.endsWith(".iliadbox.it")) {
+                    if (hostname == "mafreebox.freebox.fr" || hostname == "myiliadbox.iliad.it" || 
+                        hostname.endsWith(".fbxos.fr") || hostname.endsWith(".iliadbox.it") || 
+                        hostname.startsWith("192.168.") || hostname.startsWith("10.") || hostname.startsWith("172.") || 
+                        hostname == "127.0.0.1" || hostname == "localhost") {
                         true
                     } else {
                         HttpsURLConnection.getDefaultHostnameVerifier().verify(hostname, session)
@@ -465,29 +487,70 @@ Yu11tlZsB2Iw/TT1EyPVb5z6tK4wUgWLNFAvjXU=
             delay(1000)
             return@withContext Result.success("http://myiliadbox.iliad.it/")
         }
-        try {
-            val tempClient = getOkHttpClientBuilder()
-                .connectTimeout(3, TimeUnit.SECONDS)
-                .readTimeout(3, TimeUnit.SECONDS)
-                .build()
-            val moshi = Moshi.Builder()
-                .add(KotlinJsonAdapterFactory())
-                .build()
-            val tempRetrofit = Retrofit.Builder()
-                .baseUrl("http://myiliadbox.iliad.it/")
-                .client(tempClient)
-                .addConverterFactory(MoshiConverterFactory.create(moshi))
-                .build()
-            val tempApi = tempRetrofit.create(FreeboxApi::class.java)
-            
-            val response = tempApi.getApiVersion()
-            if (response.isSuccessful && response.body() != null) {
-                return@withContext Result.success("http://myiliadbox.iliad.it/")
+
+        val candidateList = listOfNotNull(
+            _boxUrl.value.takeIf { it.isNotBlank() },
+            "http://myiliadbox.iliad.it/",
+            "http://mafreebox.freebox.fr/",
+            "http://192.168.1.254/",
+            "http://192.168.0.254/",
+            "http://192.168.1.1/",
+            "https://myiliadbox.iliad.it/",
+            "https://mafreebox.freebox.fr/",
+            "https://192.168.1.254/"
+        ).distinct()
+
+        val tempClient = getUnsafeOkHttpClientBuilder()
+            .connectTimeout(2500, TimeUnit.MILLISECONDS)
+            .readTimeout(2500, TimeUnit.MILLISECONDS)
+            .writeTimeout(2500, TimeUnit.MILLISECONDS)
+            .build()
+
+        val moshi = Moshi.Builder()
+            .add(KotlinJsonAdapterFactory())
+            .build()
+
+        for (candidate in candidateList) {
+            val sanitized = if (!candidate.startsWith("http://") && !candidate.startsWith("https://")) {
+                "http://$candidate"
+            } else candidate
+            val finalUrl = if (!sanitized.endsWith("/")) "$sanitized/" else sanitized
+
+            try {
+                val tempRetrofit = Retrofit.Builder()
+                    .baseUrl(finalUrl)
+                    .client(tempClient)
+                    .addConverterFactory(MoshiConverterFactory.create(moshi))
+                    .build()
+                val tempApi = tempRetrofit.create(FreeboxApi::class.java)
+
+                val response = tempApi.getApiVersion()
+                if (response.isSuccessful && response.body() != null) {
+                    val apiVer = response.body()!!
+                    val baseUrl = apiVer.apiBaseUrl ?: "/api/"
+                    val rawVersion = apiVer.apiVersion ?: "3"
+                    val majorVersion = rawVersion.split(".").firstOrNull() ?: "3"
+                    val deviceName = apiVer.deviceName ?: "Freebox Server"
+                    val boxModelName = apiVer.boxModelName ?: "Freebox Server"
+
+                    setDiscoveredParams(
+                        baseUrl = baseUrl,
+                        majorVersion = majorVersion,
+                        deviceName = deviceName,
+                        boxModelName = boxModelName,
+                        apiDomain = apiVer.apiDomain,
+                        httpsPort = apiVer.httpsPort,
+                        httpsAvailable = apiVer.httpsAvailable
+                    )
+                    setBoxUrl(finalUrl)
+                    return@withContext Result.success(finalUrl)
+                }
+            } catch (e: Exception) {
+                Log.d("FreeboxRepository", "Candidate $finalUrl failed discovery: ${e.message}")
             }
-            Result.failure(Exception("Discovery failed, no response from local box"))
-        } catch (e: Exception) {
-            Result.failure(e)
         }
+
+        Result.failure(Exception("Nessun Box Freebox/Iliadbox trovato automaticamente nella rete locale."))
     }
 
     suspend fun testConnection(): Result<ApiVersion> = withContext(Dispatchers.IO) {
@@ -512,7 +575,8 @@ Yu11tlZsB2Iw/TT1EyPVb5z6tK4wUgWLNFAvjXU=
                     deviceName = deviceName,
                     boxModelName = boxModelName,
                     apiDomain = apiVer.apiDomain,
-                    httpsPort = apiVer.httpsPort
+                    httpsPort = apiVer.httpsPort,
+                    httpsAvailable = apiVer.httpsAvailable
                 )
                 Result.success(apiVer)
             } else {
