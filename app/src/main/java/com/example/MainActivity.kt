@@ -695,7 +695,8 @@ fun HomeScreen(
                                 ConnectionState.CONNECTED -> Color(0xFF4CAF50)
                                 ConnectionState.PENDING_BOX_AUTH -> Color(0xFFFF9800)
                                 ConnectionState.LOGGING_IN, ConnectionState.REGISTERING -> Color(0xFF2196F3)
-                                else -> Color(0xFFE62C2E)
+                                ConnectionState.DISCONNECTED -> Color(0xFF9E9E9E)
+                                ConnectionState.ERROR -> Color(0xFFE62C2E)
                             }
                             val statusText = when (uiState.connectionState) {
                                 ConnectionState.CONNECTED -> stringResource(R.string.status_connected)
@@ -1666,8 +1667,8 @@ fun SettingsScreen(
                     stepNumber = 2,
                     title = "Registra Applicazione",
                     description = "Richiedi le credenziali del token dell'app e un ID di tracciamento dal router.",
-                    statusText = if (step2Completed) "REGISTRATO" else if (step1Completed) "PRONTO" else "BLOCCATO",
-                    statusColor = if (step2Completed) Color(0xFF4CAF50) else if (step1Completed) Color(0xFF2196F3) else MaterialTheme.colorScheme.onSurfaceVariant,
+                    statusText = if (step2Completed) "REGISTRATO" else if (uiState.connectionState == ConnectionState.REGISTERING) "REGISTRAZIONE..." else if (uiState.connectionState == ConnectionState.ERROR) "ERRORE - RIPROVA" else if (step1Completed) "PRONTO" else "BLOCCATO",
+                    statusColor = if (step2Completed) Color(0xFF4CAF50) else if (uiState.connectionState == ConnectionState.REGISTERING) Color(0xFF2196F3) else if (uiState.connectionState == ConnectionState.ERROR) MaterialTheme.colorScheme.error else if (step1Completed) Color(0xFF2196F3) else MaterialTheme.colorScheme.onSurfaceVariant,
                     isActive = step1Completed && !step2Completed,
                     isCompleted = step2Completed,
                     showLine = true

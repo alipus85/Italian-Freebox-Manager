@@ -300,19 +300,11 @@ class FreeboxViewModel(application: Application) : AndroidViewModel(application)
             _uiState.update { it.copy(isLoadingFiles = true) }
             val result = repository.getFiles(path)
             _uiState.update { state ->
-                if (result.isSuccess) {
-                    state.copy(
-                        isLoadingFiles = false,
-                        currentPath = path,
-                        files = result.getOrNull() ?: emptyList(),
-                        error = null
-                    )
-                } else {
-                    state.copy(
-                        isLoadingFiles = false,
-                        error = result.exceptionOrNull()?.message ?: "Impossibile recuperare i file"
-                    )
-                }
+                state.copy(
+                    isLoadingFiles = false,
+                    currentPath = path,
+                    files = if (result.isSuccess) (result.getOrNull() ?: emptyList()) else emptyList()
+                )
             }
         }
     }
@@ -513,7 +505,18 @@ class FreeboxViewModel(application: Application) : AndroidViewModel(application)
 
     fun dismissPairingDialog() {
         authPollingJob?.cancel()
-        _uiState.update { it.copy(pairingDialogState = PairingDialogState.HIDDEN) }
+        if (!repository.isAuthorized.value) {
+            repository.clearFailedAuth()
+        }
+        _uiState.update {
+            it.copy(
+                trackId = -1,
+                error = null,
+                pairingDialogState = PairingDialogState.HIDDEN,
+                pairingDialogMessage = null,
+                connectionState = if (it.connectionState == ConnectionState.PENDING_BOX_AUTH || it.connectionState == ConnectionState.ERROR || it.connectionState == ConnectionState.REGISTERING) ConnectionState.DISCONNECTED else it.connectionState
+            )
+        }
     }
 
     fun registerApp() {
@@ -522,6 +525,7 @@ class FreeboxViewModel(application: Application) : AndroidViewModel(application)
                 it.copy(
                     isBusy = true,
                     error = null,
+                    connectionState = ConnectionState.REGISTERING,
                     pairingDialogState = PairingDialogState.WAITING,
                     pairingDialogMessage = "Inviata richiesta al router...\n\nGuarda lo schermo della tua Iliadbox/Freebox e premi 'SÌ' o la freccia verde per autorizzare l'applicazione.",
                     feedback = "Avvio della registrazione dell'applicazione..."
@@ -544,9 +548,11 @@ class FreeboxViewModel(application: Application) : AndroidViewModel(application)
                 }
                 startAuthPolling()
             }.onFailure { ex ->
+                repository.clearFailedAuth()
                 _uiState.update {
                     it.copy(
                         isBusy = false,
+                        trackId = -1,
                         connectionState = ConnectionState.ERROR,
                         pairingDialogState = PairingDialogState.FAILURE,
                         pairingDialogMessage = "Richiesta di registrazione fallita: ${ex.message}",
@@ -586,8 +592,10 @@ class FreeboxViewModel(application: Application) : AndroidViewModel(application)
                         }
                     }
                     "timeout" -> {
+                        repository.clearFailedAuth()
                         _uiState.update {
                             it.copy(
+                                trackId = -1,
                                 connectionState = ConnectionState.ERROR,
                                 pairingDialogState = PairingDialogState.FAILURE,
                                 pairingDialogMessage = "Tempo scaduto per la conferma sul display della Iliadbox.",
@@ -597,8 +605,10 @@ class FreeboxViewModel(application: Application) : AndroidViewModel(application)
                         authPollingJob?.cancel()
                     }
                     "denied" -> {
+                        repository.clearFailedAuth()
                         _uiState.update {
                             it.copy(
+                                trackId = -1,
                                 connectionState = ConnectionState.ERROR,
                                 pairingDialogState = PairingDialogState.FAILURE,
                                 pairingDialogMessage = "Associazione negata o rifiutata sul display della Iliadbox.",
@@ -608,8 +618,10 @@ class FreeboxViewModel(application: Application) : AndroidViewModel(application)
                         authPollingJob?.cancel()
                     }
                     else -> {
+                        repository.clearFailedAuth()
                         _uiState.update {
                             it.copy(
+                                trackId = -1,
                                 connectionState = ConnectionState.ERROR,
                                 pairingDialogState = PairingDialogState.FAILURE,
                                 pairingDialogMessage = "Autorizzazione negata o scaduta ($status).",
@@ -620,9 +632,11 @@ class FreeboxViewModel(application: Application) : AndroidViewModel(application)
                     }
                 }
             }.onFailure { ex ->
+                repository.clearFailedAuth()
                 _uiState.update {
                     it.copy(
                         isBusy = false,
+                        trackId = -1,
                         pairingDialogState = PairingDialogState.FAILURE,
                         pairingDialogMessage = "Impossibile verificare lo stato: ${ex.message}",
                         error = "Impossibile verificare lo stato del box: ${ex.message}"
@@ -655,6 +669,7 @@ class FreeboxViewModel(application: Application) : AndroidViewModel(application)
                         login()
                         break
                     } else if (status != "pending") {
+                        repository.clearFailedAuth()
                         val errMsg = when (status) {
                             "denied" -> "Associazione negata dall'utente sul display della Iliadbox."
                             "timeout" -> "Tempo scaduto per la conferma sul display della Iliadbox."
@@ -662,6 +677,7 @@ class FreeboxViewModel(application: Application) : AndroidViewModel(application)
                         }
                         _uiState.update {
                             it.copy(
+                                trackId = -1,
                                 connectionState = ConnectionState.ERROR,
                                 pairingDialogState = PairingDialogState.FAILURE,
                                 pairingDialogMessage = errMsg,
@@ -673,8 +689,10 @@ class FreeboxViewModel(application: Application) : AndroidViewModel(application)
                 }
             }
             if (attempts >= 60 && _uiState.value.pairingDialogState == PairingDialogState.WAITING) {
+                repository.clearFailedAuth()
                 _uiState.update {
                     it.copy(
+                        trackId = -1,
                         connectionState = ConnectionState.ERROR,
                         pairingDialogState = PairingDialogState.FAILURE,
                         pairingDialogMessage = "Tempo massimo di attesa scaduto (5 minuti). Riprova la richiesta di associazione.",
@@ -766,8 +784,10 @@ class FreeboxViewModel(application: Application) : AndroidViewModel(application)
             val systemConfigResult = repository.getSystemConfig()
             val partitionsResult = repository.getPartitions()
             
-            // Also load root files on refresh
-            loadFiles(_uiState.value.currentPath)
+            // Only load files if user is on Files screen
+            if (_uiState.value.currentScreen == AppScreen.FILES) {
+                loadFiles(_uiState.value.currentPath)
+            }
 
             statsResult.onSuccess { stats ->
                 val downMbps = (stats.bandwidthDown ?: 0L) / 1_000_000f

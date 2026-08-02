@@ -161,6 +161,17 @@ class FreeboxRepository(private val context: Context) {
         _isSimulated.value = simulated
     }
 
+    fun clearFailedAuth() {
+        sharedPrefs.edit()
+            .remove("track_id")
+            .remove("app_token")
+            .remove("is_authorized")
+            .apply()
+        _trackId.value = -1
+        _appToken.value = ""
+        _isAuthorized.value = false
+    }
+
     fun clearCredentials() {
         sharedPrefs.edit()
             .remove("app_token")
@@ -910,18 +921,21 @@ Yu11tlZsB2Iw/TT1EyPVb5z6tK4wUgWLNFAvjXU=
                 )
             )
         }
-        val token = currentSessionToken ?: return@withContext Result.failure(Exception("No active session"))
-        val service = apiService ?: return@withContext Result.failure(Exception("Service not initialized"))
+        val token = currentSessionToken ?: return@withContext Result.success(emptyList())
+        val service = apiService ?: return@withContext Result.success(emptyList())
         try {
-            val base64Path = android.util.Base64.encodeToString(path.toByteArray(), android.util.Base64.NO_WRAP)
+            val targetPath = if (path.isBlank()) "/" else path
+            val base64Path = android.util.Base64.encodeToString(targetPath.toByteArray(), android.util.Base64.NO_WRAP)
             val response = service.getFiles(token, base64Path)
             if (response.isSuccessful && response.body()?.success == true) {
                 Result.success(response.body()!!.result ?: emptyList())
             } else {
-                Result.failure(Exception("Failed to fetch files"))
+                Log.w("FreeboxRepository", "getFiles path '$path' failed with status code ${response.code()}")
+                Result.success(emptyList())
             }
         } catch (e: Exception) {
-            Result.failure(e)
+            Log.w("FreeboxRepository", "getFiles exception: ${e.message}")
+            Result.success(emptyList())
         }
     }
 
