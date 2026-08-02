@@ -1092,7 +1092,50 @@ Yu11tlZsB2Iw/TT1EyPVb5z6tK4wUgWLNFAvjXU=
         try {
             val response = service.getDownloads(token)
             if (response.isSuccessful && response.body()?.success == true) {
-                Result.success(response.body()!!.result ?: emptyList())
+                val tasks = response.body()!!.result ?: emptyList()
+                val enrichedTasks = tasks.map { task ->
+                    if (task.isTorrent && (task.status == "downloading" || task.status == "seeding")) {
+                        try {
+                            var seedsConn = task.seedsConn
+                            var seedsTot = task.seedsTot
+                            var peersConn = task.peersConn
+                            var peersTot = task.peersTot
+
+                            // Fetch peers
+                            try {
+                                val peersResp = service.getDownloadPeers(token, task.id)
+                                if (peersResp.isSuccessful && peersResp.body()?.success == true) {
+                                    val peerList = peersResp.body()?.result ?: emptyList()
+                                    seedsConn = peerList.count { (it.progress ?: 0) >= 100 }
+                                    peersConn = peerList.count { (it.progress ?: 0) < 100 }
+                                }
+                            } catch (_: Exception) {}
+
+                            // Fetch trackers for total seeders/leechers in swarm
+                            try {
+                                val trackersResp = service.getDownloadTrackers(token, task.id)
+                                if (trackersResp.isSuccessful && trackersResp.body()?.success == true) {
+                                    val trackerList = trackersResp.body()?.result ?: emptyList()
+                                    val trackerSeeds = trackerList.mapNotNull { it.nseeders }.maxOrNull() ?: 0
+                                    val trackerLeechers = trackerList.mapNotNull { it.nleechers }.maxOrNull() ?: 0
+                                    
+                                    if (trackerSeeds > seedsTot) seedsTot = trackerSeeds
+                                    if (trackerLeechers > peersTot) peersTot = trackerLeechers
+                                }
+                            } catch (_: Exception) {}
+
+                            task.copy(
+                                seedsConnected = seedsConn,
+                                seedsTotal = maxOf(seedsTot, seedsConn),
+                                peersConnected = peersConn,
+                                peersTotal = maxOf(peersTot, peersConn)
+                            )
+                        } catch (e: Exception) {
+                            task
+                        }
+                    } else task
+                }
+                Result.success(enrichedTasks)
             } else {
                 Result.failure(Exception("Failed to fetch downloads"))
             }

@@ -256,6 +256,44 @@ data class DownloadBtInfo(
 )
 
 @JsonClass(generateAdapter = true)
+data class DownloadPeer(
+    @Json(name = "protocol") val protocol: String? = null,
+    @Json(name = "origin") val origin: String? = null,
+    @Json(name = "progress") val progress: Int? = 0,
+    @Json(name = "remote_choke") val remoteChoke: Boolean? = null,
+    @Json(name = "host") val host: String? = null,
+    @Json(name = "port") val port: Int? = 0,
+    @Json(name = "client") val client: String? = null,
+    @Json(name = "country_code") val countryCode: String? = null,
+    @Json(name = "state") val state: String? = null,
+    @Json(name = "rx") val rx: Long? = 0L,
+    @Json(name = "tx") val tx: Long? = 0L,
+    @Json(name = "rx_rate") val rxRate: Long? = 0L,
+    @Json(name = "tx_rate") val txRate: Long? = 0L
+)
+
+@JsonClass(generateAdapter = true)
+data class DownloadPeersResponse(
+    @Json(name = "success") val success: Boolean,
+    @Json(name = "result") val result: List<DownloadPeer>? = null
+)
+
+@JsonClass(generateAdapter = true)
+data class DownloadTracker(
+    @Json(name = "nseeders") val nseeders: Int? = 0,
+    @Json(name = "nleechers") val nleechers: Int? = 0,
+    @Json(name = "reannounce_in") val reannounceIn: Int? = null,
+    @Json(name = "announce") val announce: String? = null,
+    @Json(name = "status") val status: String? = null
+)
+
+@JsonClass(generateAdapter = true)
+data class DownloadTrackersResponse(
+    @Json(name = "success") val success: Boolean,
+    @Json(name = "result") val result: List<DownloadTracker>? = null
+)
+
+@JsonClass(generateAdapter = true)
 data class DownloadTask(
     @Json(name = "id") val id: Int,
     @Json(name = "name") val name: String,
@@ -474,6 +512,18 @@ interface FreeboxApi {
         @Header("X-Fbx-App-Auth") sessionToken: String,
         @Path("task_id") taskId: Int
     ): Response<DownloadFileListResponse>
+
+    @GET("api/v8/downloads/{task_id}/peers")
+    suspend fun getDownloadPeers(
+        @Header("X-Fbx-App-Auth") sessionToken: String,
+        @Path("task_id") taskId: Int
+    ): Response<DownloadPeersResponse>
+
+    @GET("api/v8/downloads/{task_id}/trackers")
+    suspend fun getDownloadTrackers(
+        @Header("X-Fbx-App-Auth") sessionToken: String,
+        @Path("task_id") taskId: Int
+    ): Response<DownloadTrackersResponse>
 
     @GET("api/v8/storage/partition/")
     suspend fun getPartitions(@Header("X-Fbx-App-Auth") sessionToken: String): Response<PartitionsResponse>

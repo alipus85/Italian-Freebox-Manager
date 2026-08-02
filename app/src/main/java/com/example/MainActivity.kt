@@ -2757,6 +2757,62 @@ fun DownloadTaskCard(
                 }
             }
 
+            val seedsConn = task.seedsConn
+            val seedsTot = task.seedsTot
+            val peersConn = task.peersConn
+            val peersTot = task.peersTot
+
+            if (task.isTorrent) {
+                Spacer(modifier = Modifier.height(6.dp))
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f), RoundedCornerShape(8.dp))
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = "🌱 Seed: $seedsConn${if (seedsTot > 0 && seedsTot != seedsConn) "/$seedsTot" else ""}",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = "   👥 Peer: $peersConn${if (peersTot > 0 && peersTot != peersConn) "/$peersTot" else ""}",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Normal,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    val healthText = when {
+                        seedsConn >= 5 -> "Torrent Ottimo"
+                        seedsConn > 0 -> "Torrent Buono"
+                        peersConn > 0 -> "Peer Connessi"
+                        else -> "In ricerca Seed"
+                    }
+                    val healthColor = when {
+                        seedsConn >= 5 -> Color(0xFF2E7D32)
+                        seedsConn > 0 -> Color(0xFF388E3C)
+                        peersConn > 0 -> Color(0xFF1976D2)
+                        else -> Color(0xFFE65100)
+                    }
+                    Surface(
+                        shape = RoundedCornerShape(6.dp),
+                        color = healthColor
+                    ) {
+                        Text(
+                            text = healthText,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
+                }
+            }
+
             Spacer(modifier = Modifier.height(10.dp))
 
             // Progress bar and Percentage
