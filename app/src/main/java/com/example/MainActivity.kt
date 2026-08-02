@@ -1169,7 +1169,10 @@ fun FilesScreen(uiState: FreeboxUiState, viewModel: FreeboxViewModel) {
                     color = MaterialTheme.colorScheme.onSurface
                 )
             }
-            Row {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = { viewModel.loadFiles(uiState.currentPath) }) {
+                    Icon(Icons.Default.Refresh, contentDescription = "Aggiorna", tint = MaterialTheme.colorScheme.primary)
+                }
                 IconButton(onClick = { uploadLauncher.launch("*/*") }) {
                     Icon(Icons.Default.KeyboardArrowUp, contentDescription = "Upload File", tint = MaterialTheme.colorScheme.primary)
                 }

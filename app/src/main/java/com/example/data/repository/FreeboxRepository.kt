@@ -940,15 +940,22 @@ Yu11tlZsB2Iw/TT1EyPVb5z6tK4wUgWLNFAvjXU=
     }
 
     suspend fun removeFile(path: String): Result<Boolean> = withContext(Dispatchers.IO) {
+        if (_isSimulated.value) return@withContext Result.success(true)
         val token = currentSessionToken ?: return@withContext Result.failure(Exception("No active session"))
         val service = apiService ?: return@withContext Result.failure(Exception("Service not initialized"))
         try {
-            val base64Path = android.util.Base64.encodeToString(path.toByteArray(), android.util.Base64.NO_WRAP)
-            val response = service.removeFiles(token, RmRequest(listOf(base64Path)))
+            val normalizedPath = if (path.startsWith("/")) path else "/$path"
+            val base64Path1 = android.util.Base64.encodeToString(path.toByteArray(), android.util.Base64.NO_WRAP)
+            val base64Path2 = android.util.Base64.encodeToString(normalizedPath.toByteArray(), android.util.Base64.NO_WRAP)
+            
+            var response = service.removeFiles(token, RmRequest(listOf(base64Path1)))
+            if (!response.isSuccessful || response.body()?.success != true) {
+                response = service.removeFiles(token, RmRequest(listOf(base64Path2)))
+            }
             if (response.isSuccessful && response.body()?.success == true) {
                 Result.success(true)
             } else {
-                Result.failure(Exception("Failed to remove file"))
+                Result.failure(Exception("Impossibile eliminare l'elemento"))
             }
         } catch (e: Exception) {
             Result.failure(e)
@@ -956,15 +963,22 @@ Yu11tlZsB2Iw/TT1EyPVb5z6tK4wUgWLNFAvjXU=
     }
 
     suspend fun createDirectory(parentPath: String, dirName: String): Result<Boolean> = withContext(Dispatchers.IO) {
+        if (_isSimulated.value) return@withContext Result.success(true)
         val token = currentSessionToken ?: return@withContext Result.failure(Exception("No active session"))
         val service = apiService ?: return@withContext Result.failure(Exception("Service not initialized"))
         try {
-            val base64Parent = android.util.Base64.encodeToString(parentPath.toByteArray(), android.util.Base64.NO_WRAP)
-            val response = service.createDirectory(token, MkdirRequest(base64Parent, dirName))
+            val normalizedParent = if (parentPath.isBlank()) "/" else (if (parentPath.startsWith("/")) parentPath else "/$parentPath")
+            val base64Parent1 = android.util.Base64.encodeToString(parentPath.toByteArray(), android.util.Base64.NO_WRAP)
+            val base64Parent2 = android.util.Base64.encodeToString(normalizedParent.toByteArray(), android.util.Base64.NO_WRAP)
+            
+            var response = service.createDirectory(token, MkdirRequest(base64Parent1, dirName))
+            if (!response.isSuccessful || response.body()?.success != true) {
+                response = service.createDirectory(token, MkdirRequest(base64Parent2, dirName))
+            }
             if (response.isSuccessful && response.body()?.success == true) {
                 Result.success(true)
             } else {
-                Result.failure(Exception("Failed to create directory"))
+                Result.failure(Exception("Impossibile creare la cartella"))
             }
         } catch (e: Exception) {
             Result.failure(e)
@@ -972,15 +986,22 @@ Yu11tlZsB2Iw/TT1EyPVb5z6tK4wUgWLNFAvjXU=
     }
 
     suspend fun renameFile(srcPath: String, newName: String): Result<Boolean> = withContext(Dispatchers.IO) {
+        if (_isSimulated.value) return@withContext Result.success(true)
         val token = currentSessionToken ?: return@withContext Result.failure(Exception("No active session"))
         val service = apiService ?: return@withContext Result.failure(Exception("Service not initialized"))
         try {
-            val base64Src = android.util.Base64.encodeToString(srcPath.toByteArray(), android.util.Base64.NO_WRAP)
-            val response = service.renameFile(token, RenameRequest(base64Src, newName))
+            val normalizedSrc = if (srcPath.startsWith("/")) srcPath else "/$srcPath"
+            val base64Src1 = android.util.Base64.encodeToString(srcPath.toByteArray(), android.util.Base64.NO_WRAP)
+            val base64Src2 = android.util.Base64.encodeToString(normalizedSrc.toByteArray(), android.util.Base64.NO_WRAP)
+            
+            var response = service.renameFile(token, RenameRequest(base64Src1, newName))
+            if (!response.isSuccessful || response.body()?.success != true) {
+                response = service.renameFile(token, RenameRequest(base64Src2, newName))
+            }
             if (response.isSuccessful && response.body()?.success == true) {
                 Result.success(true)
             } else {
-                Result.failure(Exception("Failed to rename file"))
+                Result.failure(Exception("Impossibile rinominare l'elemento"))
             }
         } catch (e: Exception) {
             Result.failure(e)

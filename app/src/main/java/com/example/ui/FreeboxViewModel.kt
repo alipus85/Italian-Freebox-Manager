@@ -313,22 +313,28 @@ class FreeboxViewModel(application: Application) : AndroidViewModel(application)
     fun removeFile(path: String) {
         viewModelScope.launch {
             _uiState.update { it.copy(isBusy = true) }
+            val currentP = _uiState.value.currentPath
             val result = repository.removeFile(path)
             _uiState.update { state ->
                 state.copy(
                     isBusy = false,
                     error = result.exceptionOrNull()?.message,
-                    feedback = if (result.isSuccess) "File rimosso" else null
+                    feedback = if (result.isSuccess) "Elemento rimosso" else null
                 )
             }
-            if (result.isSuccess) loadFiles(_uiState.value.currentPath)
+            loadFiles(currentP)
+            delay(600)
+            loadFiles(currentP)
+            delay(1200)
+            loadFiles(currentP)
         }
     }
 
     fun createDirectory(dirName: String) {
         viewModelScope.launch {
             _uiState.update { it.copy(isBusy = true) }
-            val result = repository.createDirectory(_uiState.value.currentPath, dirName)
+            val currentP = _uiState.value.currentPath
+            val result = repository.createDirectory(currentP, dirName)
             _uiState.update { state ->
                 state.copy(
                     isBusy = false,
@@ -336,22 +342,27 @@ class FreeboxViewModel(application: Application) : AndroidViewModel(application)
                     feedback = if (result.isSuccess) "Cartella creata" else null
                 )
             }
-            if (result.isSuccess) loadFiles(_uiState.value.currentPath)
+            loadFiles(currentP)
+            delay(600)
+            loadFiles(currentP)
         }
     }
 
     fun renameFile(srcPath: String, newName: String) {
         viewModelScope.launch {
             _uiState.update { it.copy(isBusy = true) }
+            val currentP = _uiState.value.currentPath
             val result = repository.renameFile(srcPath, newName)
             _uiState.update { state ->
                 state.copy(
                     isBusy = false,
                     error = result.exceptionOrNull()?.message,
-                    feedback = if (result.isSuccess) "File rinominato" else null
+                    feedback = if (result.isSuccess) "Elemento rinominato" else null
                 )
             }
-            if (result.isSuccess) loadFiles(_uiState.value.currentPath)
+            loadFiles(currentP)
+            delay(600)
+            loadFiles(currentP)
         }
     }
 
