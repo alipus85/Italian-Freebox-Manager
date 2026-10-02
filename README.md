@@ -79,7 +79,7 @@ L'applicazione include il modulo nativo **`AppUpdateManager`** che permette di m
 ┌───────────────────────────┴────────────────────────────┐
 │      SettingsScreen -> Scheda AGGIORNAMENTI OTA        │
 │  - Badge di stato (Aggiornata / Nuova v1.0.X)          │
-│  - Repository configurabile: alipus85/ItalianFreebox...│
+│  - Repository configurabile: alipus85/Italian-Freebox..│
 │  - Pulsanti: "Verifica OTA", "Scarica e Installa"      │
 └────────────────────────────────────────────────────────┘
 ```
@@ -149,8 +149,8 @@ Scarica l'ultimo file APK compilato dalla pagina [GitHub Releases](../../release
 Se preferisci compilare il codice sorgente:
 ```bash
 # Clona il repository
-git clone https://github.com/alipus85/ItalianFreeboxManager.git
-cd ItalianFreeboxManager
+git clone https://github.com/alipus85/Italian-Freebox-Manager.git
+cd Italian-Freebox-Manager
 
 # Compila l'APK di debug
 ./gradlew assembleDebug

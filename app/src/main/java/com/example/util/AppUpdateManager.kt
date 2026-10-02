@@ -58,7 +58,7 @@ sealed class DownloadState {
 class AppUpdateManager(private val context: Context) {
 
     companion object {
-        const val DEFAULT_REPO = "alipus85/ItalianFreeboxManager"
+        const val DEFAULT_REPO = "alipus85/Italian-Freebox-Manager"
         const val APK_FILE_NAME = "ItalianFreeboxManager.apk"
     }
 

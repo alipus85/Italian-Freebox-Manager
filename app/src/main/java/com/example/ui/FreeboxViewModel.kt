@@ -97,7 +97,7 @@ data class FreeboxUiState(
     val systemFanSpeed: String = "1850 giri/min",
 
     // OTA Updates
-    val githubRepo: String = "alipus85/ItalianFreeboxManager",
+    val githubRepo: String = "alipus85/Italian-Freebox-Manager",
     val githubToken: String = "",
     val isCheckingUpdate: Boolean = false,
     val updateCheckResult: UpdateCheckResult? = null,
