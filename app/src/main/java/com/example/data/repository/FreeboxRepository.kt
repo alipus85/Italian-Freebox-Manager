@@ -41,6 +41,10 @@ import javax.crypto.spec.SecretKeySpec
 
 class FreeboxRepository(private val context: Context) {
 
+    companion object {
+        const val FREEBOX_APP_ID = "it.alipus85.italianfreebox.manager"
+    }
+
     private val sharedPrefs = context.getSharedPreferences("freebox_prefs", Context.MODE_PRIVATE)
 
     private val _boxUrl = MutableStateFlow(sharedPrefs.getString("box_url", "http://myiliadbox.iliad.it/") ?: "http://myiliadbox.iliad.it/")
@@ -623,7 +627,7 @@ Yu11tlZsB2Iw/TT1EyPVb5z6tK4wUgWLNFAvjXU=
         val service = apiService ?: return@withContext Result.failure(Exception("Service not initialized"))
         try {
             val req = AuthorizeRequest(
-                appId = "it.adrix.italianfreebox.manager",
+                appId = FREEBOX_APP_ID,
                 appName = "ItalianFreebox Manager",
                 appVersion = "1.0",
                 deviceName = android.os.Build.MODEL
@@ -701,7 +705,7 @@ Yu11tlZsB2Iw/TT1EyPVb5z6tK4wUgWLNFAvjXU=
                 ?: return@withContext Result.failure(Exception("Challenge string is null"))
 
             val password = computeHmacSha1(token, challenge)
-            val sessionReq = SessionRequest(appId = "it.adrix.italianfreebox.manager", password = password)
+            val sessionReq = SessionRequest(appId = FREEBOX_APP_ID, password = password)
 
             val sessionResponse = service.login(sessionReq)
             if (sessionResponse.isSuccessful) {

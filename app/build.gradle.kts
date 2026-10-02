@@ -12,7 +12,7 @@ android {
     val dynamicVersionCode = System.getenv("VERSION_CODE")?.toIntOrNull() ?: (100 + runNumber)
 
     defaultConfig {
-        applicationId = "com.adrix.italianfreeboxmanager"
+        applicationId = "com.alipus85.italianfreeboxmanager"
         minSdk = 24
         targetSdk = 34
         versionCode = dynamicVersionCode
