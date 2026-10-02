@@ -1,0 +1,6 @@
+{
+  "summary":  "Piano di implementazione aggiornato secondo le specifiche esatte di CrealityAuto: versioning dinamico basato su GITHUB_RUN_NUMBER in build.gradle.kts, workflow .github/workflows/build-apk.yml con rilascio diretto APK su tag latest, ripristino keystore debug, AppUpdateManager.kt con changelog commit e download progress, permessi REQUEST_INSTALL_PACKAGES e file_paths.xml per FileProvider, e stringa default_github_repo per ItalianFreeboxManager.",
+  "updatedAt":  "2026-10-02T15:15:50.324699329Z",
+  "requestFeedback":  true,
+  "userFacing":  true
+}

@@ -6,6 +6,9 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.api.LanHost
 import com.example.data.repository.FreeboxRepository
+import com.example.util.AppUpdateManager
+import com.example.util.DownloadState
+import com.example.util.UpdateCheckResult
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -91,7 +94,15 @@ data class FreeboxUiState(
     val internetConnectionTime: String = "21 giorni, 4 ore",
     val systemFirmwareVersion: String = "4.8.1",
     val systemCpuTemp: String = "48°C (Normale)",
-    val systemFanSpeed: String = "1850 giri/min"
+    val systemFanSpeed: String = "1850 giri/min",
+
+    // OTA Updates
+    val githubRepo: String = "alipus85/ItalianFreeboxManager",
+    val githubToken: String = "",
+    val isCheckingUpdate: Boolean = false,
+    val updateCheckResult: UpdateCheckResult? = null,
+    val downloadState: DownloadState = DownloadState.Idle,
+    val showUpdateDialog: Boolean = false
 )
 
 class FreeboxViewModel(application: Application) : AndroidViewModel(application) {
@@ -982,6 +993,82 @@ class FreeboxViewModel(application: Application) : AndroidViewModel(application)
         }
         
         return "4 giorni, 12 ore"
+    }
+
+    private val updateManager = AppUpdateManager(getApplication())
+
+    fun setGithubRepo(repo: String) {
+        _uiState.update { it.copy(githubRepo = repo) }
+    }
+
+    fun setGithubToken(token: String) {
+        _uiState.update { it.copy(githubToken = token) }
+    }
+
+    fun checkForUpdates(forceCheck: Boolean = false) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isCheckingUpdate = true) }
+            val currentRepo = _uiState.value.githubRepo
+            val currentToken = _uiState.value.githubToken.takeIf { it.isNotBlank() }
+            val result = updateManager.checkForUpdates(
+                repo = currentRepo,
+                token = currentToken,
+                forceCheck = forceCheck
+            )
+            _uiState.update {
+                it.copy(
+                    isCheckingUpdate = false,
+                    updateCheckResult = result,
+                    showUpdateDialog = result.isUpdateAvailable || forceCheck || result.errorMessage != null
+                )
+            }
+        }
+    }
+
+    fun dismissUpdateDialog() {
+        _uiState.update { it.copy(showUpdateDialog = false) }
+    }
+
+    fun showUpdateDialog() {
+        _uiState.update { it.copy(showUpdateDialog = true) }
+    }
+
+    fun downloadAndInstallUpdate(context: android.content.Context) {
+        val result = _uiState.value.updateCheckResult ?: return
+        val apkUrl = result.release?.apkDownloadUrl ?: return
+        val token = _uiState.value.githubToken.takeIf { it.isNotBlank() }
+
+        viewModelScope.launch {
+            _uiState.update {
+                it.copy(downloadState = DownloadState.Downloading(0f, 0L, result.release.apkSize))
+            }
+
+            val downloadResult = updateManager.downloadApk(
+                downloadUrl = apkUrl,
+                token = token,
+                onProgress = { progress, downloaded, total ->
+                    _uiState.update {
+                        it.copy(downloadState = DownloadState.Downloading(progress, downloaded, total))
+                    }
+                }
+            )
+
+            downloadResult.fold(
+                onSuccess = { file ->
+                    _uiState.update { it.copy(downloadState = DownloadState.Success(file)) }
+                    updateManager.installApk(file)
+                },
+                onFailure = { error ->
+                    _uiState.update {
+                        it.copy(downloadState = DownloadState.Error(error.localizedMessage ?: "Errore download"))
+                    }
+                }
+            )
+        }
+    }
+
+    fun resetDownloadState() {
+        _uiState.update { it.copy(downloadState = DownloadState.Idle) }
     }
 
     override fun onCleared() {

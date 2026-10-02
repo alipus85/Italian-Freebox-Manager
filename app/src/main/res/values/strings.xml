@@ -16,4 +16,5 @@
     <string name="action_parental">Controllo Genitori</string>
     <string name="title_settings">Impostazioni</string>
     <string name="title_downloads">Downloads</string>
+    <string name="default_github_repo">alipus85/ItalianFreeboxManager</string>
 </resources>

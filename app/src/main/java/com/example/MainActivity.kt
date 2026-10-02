@@ -30,6 +30,7 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.OutlinedTextField
+import com.example.util.DownloadState
 
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -1978,25 +1979,22 @@ fun SettingsScreen(
             Text("🔄 Riavvia ItalianFreebox", fontWeight = FontWeight.Bold)
         }
 
-        // Informazioni Versione
+        // Scheda Aggiornamenti OTA e GitHub Releases
         Card(
             modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
             shape = RoundedCornerShape(24.dp)
         ) {
+            val context = LocalContext.current
+            var repoInput by remember(uiState.githubRepo) { mutableStateOf(uiState.githubRepo) }
+            var tokenInput by remember(uiState.githubToken) { mutableStateOf(uiState.githubToken) }
+            var showTokenField by remember { mutableStateOf(false) }
+
             Column(
                 modifier = Modifier.padding(20.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+                verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
-                Text(
-                    text = "INFORMAZIONI E VERSIONE",
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    letterSpacing = 1.sp
-                )
-
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -2004,32 +2002,263 @@ fun SettingsScreen(
                 ) {
                     Column {
                         Text(
-                            text = "ItalianFreebox Client",
-                            fontSize = 15.sp,
+                            text = "AGGIORNAMENTI OTA (GITHUB)",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            letterSpacing = 1.sp
+                        )
+                        Text(
+                            text = "ItalianFreebox v${BuildConfig.VERSION_NAME} (Build ${BuildConfig.VERSION_CODE})",
+                            fontSize = 14.sp,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface
                         )
-                        Text(
-                            text = "Versione ${BuildConfig.VERSION_NAME} (Build ${BuildConfig.VERSION_CODE})",
-                            fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
                     }
 
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = Color(0xFF2E7D32).copy(alpha = 0.15f)
+                    val updateResult = uiState.updateCheckResult
+                    val badgeText = when {
+                        uiState.isCheckingUpdate -> "Verifica..."
+                        updateResult?.isUpdateAvailable == true -> "Nuova v${updateResult.latestVersion}"
+                        updateResult != null && updateResult.errorMessage == null -> "✓ Aggiornata"
+                        updateResult?.errorMessage != null -> "Errore"
+                        else -> "Disponibile"
+                    }
+                    val badgeColor = when {
+                        updateResult?.isUpdateAvailable == true -> MaterialTheme.colorScheme.primary
+                        updateResult != null && updateResult.errorMessage == null -> Color(0xFF2E7D32)
+                        updateResult?.errorMessage != null -> MaterialTheme.colorScheme.error
+                        else -> MaterialTheme.colorScheme.surfaceVariant
+                    }
+                    val badgeTextColor = when {
+                        updateResult?.isUpdateAvailable == true -> MaterialTheme.colorScheme.onPrimary
+                        updateResult != null && updateResult.errorMessage == null -> Color.White
+                        updateResult?.errorMessage != null -> MaterialTheme.colorScheme.onError
+                        else -> MaterialTheme.colorScheme.onSurfaceVariant
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(100.dp))
+                            .background(badgeColor)
+                            .padding(horizontal = 10.dp, vertical = 4.dp)
                     ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                        Text(
+                            text = badgeText,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = badgeTextColor
+                        )
+                    }
+                }
+
+                Text(
+                    text = "Controlla le ultime release compilate automaticamente da GitHub Actions e aggiorna direttamente l'APK senza browser.",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                // Input Repository GitHub
+                OutlinedTextField(
+                    value = repoInput,
+                    onValueChange = {
+                        repoInput = it
+                        viewModel.setGithubRepo(it)
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Repository GitHub (owner/repo)") },
+                    placeholder = { Text(stringResource(R.string.default_github_repo)) },
+                    singleLine = true,
+                    shape = RoundedCornerShape(12.dp)
+                )
+
+                if (showTokenField) {
+                    OutlinedTextField(
+                        value = tokenInput,
+                        onValueChange = {
+                            tokenInput = it
+                            viewModel.setGithubToken(it)
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("GitHub Token (opzionale per repo privati)") },
+                        placeholder = { Text("ghp_...") },
+                        singleLine = true,
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                } else {
+                    TextButton(
+                        onClick = { showTokenField = true },
+                        contentPadding = PaddingValues(0.dp)
+                    ) {
+                        Text("🔑 Aggiungi GitHub Token (opzionale)", fontSize = 12.sp)
+                    }
+                }
+
+                // Pulsante Verifica
+                Button(
+                    onClick = { viewModel.checkForUpdates(forceCheck = false) },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(100.dp),
+                    enabled = !uiState.isCheckingUpdate
+                ) {
+                    if (uiState.isCheckingUpdate) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            color = MaterialTheme.colorScheme.onPrimary,
+                            strokeWidth = 2.dp
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Controllo release su GitHub...")
+                    } else {
+                        Text("🚀 Verifica Aggiornamenti OTA", fontWeight = FontWeight.Bold)
+                    }
+                }
+
+                // Risultato controllo o messaggio di errore
+                val result = uiState.updateCheckResult
+                if (result != null) {
+                    if (result.errorMessage != null) {
+                        Text(
+                            text = "⚠️ ${result.errorMessage}",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    } else {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+                            shape = RoundedCornerShape(16.dp)
                         ) {
-                            Text(
-                                text = "✓ Aggiornata",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFF2E7D32)
-                            )
+                            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "Ultima Release: ${result.release?.tagName ?: result.latestVersion}",
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    if (result.release?.apkSize != null && result.release.apkSize > 0) {
+                                        Text(
+                                            text = "%.1f MB".format(result.release.apkSize / (1024f * 1024f)),
+                                            fontSize = 11.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+
+                                if (result.release?.publishedAt?.isNotBlank() == true) {
+                                    Text(
+                                        text = "Pubblicata il: ${result.release.publishedAt}",
+                                        fontSize = 11.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+
+                                if (result.recentCommits.isNotEmpty()) {
+                                    Text(
+                                        text = "Changelog ultimi commit:",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                        result.recentCommits.take(5).forEach { commit ->
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                                verticalAlignment = Alignment.Top
+                                            ) {
+                                                Text(
+                                                    text = commit.shortSha,
+                                                    fontSize = 10.sp,
+                                                    fontFamily = FontFamily.Monospace,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = MaterialTheme.colorScheme.secondary
+                                                )
+                                                Text(
+                                                    text = commit.message,
+                                                    fontSize = 11.sp,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis,
+                                                    modifier = Modifier.weight(1f)
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+
+                                // Stato download e pulsanti
+                                when (val downloadState = uiState.downloadState) {
+                                    is DownloadState.Downloading -> {
+                                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                            LinearProgressIndicator(
+                                                progress = { downloadState.progress },
+                                                modifier = Modifier.fillMaxWidth()
+                                            )
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween
+                                            ) {
+                                                Text(
+                                                    text = "${(downloadState.progress * 100).toInt()}%",
+                                                    fontSize = 11.sp,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                                Text(
+                                                    text = "%.1f / %.1f MB".format(
+                                                        downloadState.downloadedBytes / (1024f * 1024f),
+                                                        downloadState.totalBytes / (1024f * 1024f)
+                                                    ),
+                                                    fontSize = 11.sp
+                                                )
+                                            }
+                                        }
+                                    }
+                                    is DownloadState.Success -> {
+                                        Text(
+                                            text = "✅ APK scaricato. Avvio installazione...",
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color(0xFF2E7D32)
+                                        )
+                                    }
+                                    is DownloadState.Error -> {
+                                        Text(
+                                            text = "❌ Errore download: ${downloadState.message}",
+                                            fontSize = 11.sp,
+                                            color = MaterialTheme.colorScheme.error
+                                        )
+                                        Button(
+                                            onClick = { viewModel.downloadAndInstallUpdate(context) },
+                                            modifier = Modifier.fillMaxWidth(),
+                                            shape = RoundedCornerShape(100.dp)
+                                        ) {
+                                            Text("Riprova Download")
+                                        }
+                                    }
+                                    DownloadState.Idle -> {
+                                        Button(
+                                            onClick = { viewModel.downloadAndInstallUpdate(context) },
+                                            modifier = Modifier.fillMaxWidth(),
+                                            shape = RoundedCornerShape(100.dp),
+                                            colors = ButtonDefaults.buttonColors(
+                                                containerColor = if (result.isUpdateAvailable) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondaryContainer,
+                                                contentColor = if (result.isUpdateAvailable) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSecondaryContainer
+                                            )
+                                        ) {
+                                            Text(
+                                                text = if (result.isUpdateAvailable) "📥 Scarica e Installa Aggiornamento" else "🔄 Reinstalla / Scarica Ultima Build",
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 12.sp
+                                            )
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -2049,9 +2278,54 @@ fun SettingsScreen(
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text("Canale di rilascio", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text("Stabile", fontSize = 12.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
+                    Text("GitHub Releases (latest)", fontSize = 12.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.primary)
                 }
             }
+        }
+
+        // Dialog opzionale per avviso aggiornamento disponibile
+        if (uiState.showUpdateDialog && uiState.updateCheckResult?.isUpdateAvailable == true) {
+            val release = uiState.updateCheckResult?.release
+            val context = LocalContext.current
+            AlertDialog(
+                onDismissRequest = { viewModel.dismissUpdateDialog() },
+                title = {
+                    Text(
+                        text = "Nuovo Aggiornamento Disponibile!",
+                        fontWeight = FontWeight.Bold
+                    )
+                },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(
+                            text = "È disponibile la versione ${uiState.updateCheckResult?.latestVersion} (versione installata: ${BuildConfig.VERSION_NAME}).",
+                            fontSize = 13.sp
+                        )
+                        if (release?.body?.isNotBlank() == true) {
+                            Text(
+                                text = release.body,
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            viewModel.dismissUpdateDialog()
+                            viewModel.downloadAndInstallUpdate(context)
+                        }
+                    ) {
+                        Text("Aggiorna Ora")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { viewModel.dismissUpdateDialog() }) {
+                        Text("Più tardi")
+                    }
+                }
+            )
         }
     }
 }

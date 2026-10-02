@@ -1,0 +1,76 @@
+name: Build and Release Direct APK
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Restore Keystore
+        run: |
+          mkdir -p "$HOME/.android"
+          if [ -f "debug.keystore.base64" ]; then
+            tr -d '\r\n ' < debug.keystore.base64 | base64 -d > "$HOME/.android/debug.keystore"
+          fi
+
+      - name: Build Debug APK
+        env:
+          GITHUB_RUN_NUMBER: ${{ github.run_number }}
+        run: gradle :app:assembleDebug --no-daemon
+
+      - name: Prepare Direct APK
+        run: |
+          mkdir -p release_apk
+          cp app/build/outputs/apk/debug/*.apk release_apk/ItalianFreeboxManager.apk
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ItalianFreeboxManager-APK
+          path: release_apk/ItalianFreeboxManager.apk
+          retention-days: 14
+
+      - name: Publish Direct APK to GitHub Releases
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          RUN_NUM="${{ github.run_number }}"
+          VERSION_TAG="v1.0.${RUN_NUM}"
+          
+          # Sposta il tag git 'latest' sul commit corrente
+          git tag -f latest HEAD
+          git push -f origin latest || true
+
+          RELEASE_NOTES="Aggiornamento automatico (Build #$RUN_NUM, Versione $VERSION_TAG). Download diretto di ItalianFreeboxManager.apk."
+
+          if gh release view latest >/dev/null 2>&1; then
+            gh release edit latest --title "Italian Freebox Manager $VERSION_TAG" --notes "$RELEASE_NOTES"
+            gh release upload latest release_apk/ItalianFreeboxManager.apk --clobber
+          else
+            gh release create latest release_apk/ItalianFreeboxManager.apk \
+              --title "Italian Freebox Manager $VERSION_TAG" \
+              --notes "$RELEASE_NOTES" \
+              --latest
+          fi
