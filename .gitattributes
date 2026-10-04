@@ -1,0 +1,11 @@
+# Treat binary files properly
+*.jar binary
+*.png binary
+*.webp binary
+*.jpg binary
+*.keystore binary
+*.so binary
+
+# Shell scripts line endings
+gradlew text eol=lf
+*.sh text eol=lf
