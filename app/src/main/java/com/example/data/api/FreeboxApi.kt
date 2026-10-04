@@ -71,7 +71,9 @@ data class SessionRequest(
 @JsonClass(generateAdapter = true)
 data class SessionResult(
     @Json(name = "session_token") val sessionToken: String?,
-    @Json(name = "logged_in") val loggedIn: Boolean?
+    @Json(name = "logged_in") val loggedIn: Boolean?,
+    @Json(name = "challenge") val challenge: String? = null,
+    @Json(name = "permissions") val permissions: Map<String, Boolean>? = null
 )
 
 @JsonClass(generateAdapter = true)

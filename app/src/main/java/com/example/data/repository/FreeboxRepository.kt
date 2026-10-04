@@ -46,7 +46,7 @@ import javax.crypto.spec.SecretKeySpec
 class FreeboxRepository(private val context: Context) {
 
     companion object {
-        const val FREEBOX_APP_ID = "it.alipus85.italianfreebox.manager"
+        const val FREEBOX_APP_ID = "it.italianfreebox"
     }
 
     private val sharedPrefs = context.getSharedPreferences("freebox_prefs", Context.MODE_PRIVATE)
@@ -818,9 +818,9 @@ Yu11tlZsB2Iw/TT1EyPVb5z6tK4wUgWLNFAvjXU=
         try {
             val req = AuthorizeRequest(
                 appId = FREEBOX_APP_ID,
-                appName = "ItalianFreebox Manager",
+                appName = "ItalianFreebox",
                 appVersion = "1.0",
-                deviceName = android.os.Build.MODEL
+                deviceName = android.os.Build.MODEL.take(30)
             )
             val response = service.authorizeApp(req)
             if (response.isSuccessful && response.body()?.success == true && response.body()?.result != null) {
