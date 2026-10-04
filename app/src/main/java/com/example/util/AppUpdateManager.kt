@@ -118,11 +118,13 @@ class AppUpdateManager(private val context: Context) {
             val tagName = releaseJson.optString("tag_name", "")
             val releaseName = releaseJson.optString("name", tagName)
             val body = releaseJson.optString("body", "Nessuna nota di rilascio fornita.")
-            val publishedAt = releaseJson.optString("published_at", "")
+            val rawPublishedAt = releaseJson.optString("published_at", "")
+            val rawUpdatedAt = releaseJson.optString("updated_at", "")
             val htmlUrl = releaseJson.optString("html_url", "")
 
             var apkUrl: String? = null
             var apkSize: Long = 0L
+            var assetUpdatedAt: String? = null
 
             val assets = releaseJson.optJSONArray("assets") ?: JSONArray()
             for (i in 0 until assets.length()) {
@@ -131,11 +133,17 @@ class AppUpdateManager(private val context: Context) {
                 if (assetName.endsWith(".apk", ignoreCase = true)) {
                     apkUrl = asset.optString("browser_download_url", "")
                     apkSize = asset.optLong("size", 0L)
+                    assetUpdatedAt = asset.optString("updated_at", "")
                     if (assetName.equals(APK_FILE_NAME, ignoreCase = true)) {
                         break
                     }
                 }
             }
+
+            // Se la release è stata aggiornata / sovrascritta, usa la data effettiva dell'APK o dell'aggiornamento
+            val effectiveDate = assetUpdatedAt?.takeIf { it.isNotBlank() }
+                ?: rawUpdatedAt.takeIf { it.isNotBlank() }
+                ?: rawPublishedAt
 
             // 2. Richiedi gli ultimi commit recenti
             val recentCommits = fetchRecentCommits(cleanRepo, token)
@@ -158,7 +166,7 @@ class AppUpdateManager(private val context: Context) {
                 body = body,
                 apkDownloadUrl = apkUrl,
                 apkSize = apkSize,
-                publishedAt = formatDate(publishedAt),
+                publishedAt = formatDate(effectiveDate),
                 htmlUrl = htmlUrl
             )
 

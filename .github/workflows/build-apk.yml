@@ -66,11 +66,9 @@ jobs:
           RELEASE_NOTES="Aggiornamento automatico (Build #$RUN_NUM, Versione $VERSION_TAG). Download diretto di ItalianFreeboxManager.apk."
 
           if gh release view latest >/dev/null 2>&1; then
-            gh release edit latest --title "Italian Freebox Manager $VERSION_TAG" --notes "$RELEASE_NOTES"
-            gh release upload latest release_apk/ItalianFreeboxManager.apk --clobber
-          else
-            gh release create latest release_apk/ItalianFreeboxManager.apk \
-              --title "Italian Freebox Manager $VERSION_TAG" \
-              --notes "$RELEASE_NOTES" \
-              --latest
+            gh release delete latest -y || true
           fi
+          gh release create latest release_apk/ItalianFreeboxManager.apk \
+            --title "Italian Freebox Manager $VERSION_TAG" \
+            --notes "$RELEASE_NOTES" \
+            --latest
