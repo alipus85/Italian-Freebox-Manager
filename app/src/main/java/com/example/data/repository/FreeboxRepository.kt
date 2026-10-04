@@ -19,6 +19,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
+import org.json.JSONObject
 import okhttp3.Interceptor
 import okhttp3.HttpUrl
 import okhttp3.OkHttpClient
@@ -243,6 +244,23 @@ class FreeboxRepository(private val context: Context) {
         return false
     }
 
+    fun setCustomDomainAndPort(domain: String, port: Int): Boolean {
+        val cleanDomain = domain.trim().removePrefix("https://").removePrefix("http://").removeSuffix("/")
+        if (cleanDomain.isNotBlank() && port > 0) {
+            _discoveredApiDomain.value = cleanDomain
+            _discoveredHttpsPort.value = port
+            _discoveredHttpsAvailable.value = true
+            sharedPrefs.edit()
+                .putString("api_domain", cleanDomain)
+                .putInt("https_port", port)
+                .putBoolean("https_available", true)
+                .apply()
+            setBoxUrl("https://$cleanDomain:$port/")
+            return true
+        }
+        return false
+    }
+
     private val FREEBOX_ROOT_CAS = listOf(
         // Freebox ECC Root CA
         """-----BEGIN CERTIFICATE-----
@@ -400,8 +418,11 @@ Yu11tlZsB2Iw/TT1EyPVb5z6tK4wUgWLNFAvjXU=
             OkHttpClient.Builder()
                 .sslSocketFactory(sslContext.socketFactory, combinedTrustManager)
                 .hostnameVerifier { hostname, session ->
+                    val currentDomain = _discoveredApiDomain.value
                     if (hostname == "mafreebox.freebox.fr" || hostname == "myiliadbox.iliad.it" || 
                         hostname.endsWith(".fbxos.fr") || hostname.endsWith(".iliadbox.it") || 
+                        hostname.endsWith(".ibxos.it") ||
+                        (currentDomain.isNotBlank() && hostname.equals(currentDomain, ignoreCase = true)) ||
                         hostname.startsWith("192.168.") || hostname.startsWith("10.") || hostname.startsWith("172.") || 
                         hostname == "127.0.0.1" || hostname == "localhost") {
                         true
@@ -644,7 +665,23 @@ Yu11tlZsB2Iw/TT1EyPVb5z6tK4wUgWLNFAvjXU=
                     Result.failure(Exception(body?.msg ?: "Authorization request returned success = false"))
                 }
             } else {
-                Result.failure(Exception("HTTP Error: ${response.code()}"))
+                val errBody = response.errorBody()?.string()
+                val parsedError = try {
+                    val json = JSONObject(errBody ?: "{}")
+                    val msg = json.optString("msg", "")
+                    val errCode = json.optString("error_code", "")
+                    when (errCode) {
+                        "new_apps_denied" -> "Associazione disabilitata sul router:\nAccedi a http://myiliadbox.iliad.it -> 'Parametri della iliadbox' -> 'Gestione degli accessi' e attiva la casella 'Consenti nuove associazioni'."
+                        "denied_from_external_ip" -> "Accesso negato: la prima registrazione deve essere effettuata connessi al Wi-Fi locale della iliadbox (non da dati mobili 4G/5G o VPN)."
+                        "apps_denied" -> "Accesso API disabilitato nelle impostazioni della iliadbox."
+                        "invalid_request" -> if (msg.isNotBlank()) "Richiesta non valida: $msg" else "Richiesta non valida (invalid_request)"
+                        "ratelimited" -> "Troppi tentativi falliti. Attendi qualche minuto prima di riprovare."
+                        else -> if (msg.isNotBlank()) "$msg (HTTP ${response.code()})" else "HTTP Error: ${response.code()}"
+                    }
+                } catch (_: Exception) {
+                    "HTTP Error: ${response.code()}"
+                }
+                Result.failure(Exception(parsedError))
             }
         } catch (e: Exception) {
             Result.failure(e)

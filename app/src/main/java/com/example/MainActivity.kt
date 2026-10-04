@@ -1424,7 +1424,11 @@ fun SettingsScreen(
     viewModel: FreeboxViewModel,
     onRebootRequest: () -> Unit = { viewModel.rebootBox() }
 ) {
-    var boxUrlInput by remember { mutableStateOf(uiState.boxUrl) }
+    var boxUrlInput by remember(uiState.boxUrl) { mutableStateOf(uiState.boxUrl) }
+    var domainInput by remember(uiState.discoveredApiDomain) { mutableStateOf(uiState.discoveredApiDomain) }
+    var portInput by remember(uiState.discoveredHttpsPort) { 
+        mutableStateOf(if (uiState.discoveredHttpsPort > 0) uiState.discoveredHttpsPort.toString() else "297") 
+    }
 
     Column(
         modifier = Modifier
@@ -1439,6 +1443,45 @@ fun SettingsScreen(
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onSurface
         )
+
+        // Banner per suggerire e applicare la connessione sicura HTTPS se rilevata
+        if (uiState.discoveredHttpsAvailable && uiState.discoveredApiDomain.isNotBlank() && !uiState.boxUrl.contains(uiState.discoveredApiDomain)) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFFE8F5E9)),
+                border = BorderStroke(1.dp, Color(0xFF81C784)),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("🔒", fontSize = 16.sp, modifier = Modifier.padding(end = 8.dp))
+                        Text(
+                            text = "Connessione Sicura Iliadbox Rilevata",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp,
+                            color = Color(0xFF1B5E20)
+                        )
+                    }
+                    Text(
+                        text = "Il router ha fornito l'endpoint HTTPS ufficiale: ${uiState.discoveredApiDomain}:${uiState.discoveredHttpsPort}.\nApplicando questo indirizzo potrai autenticarti ed eseguire la registrazione senza errori di protocollo.",
+                        fontSize = 11.sp,
+                        color = Color(0xFF2E7D32)
+                    )
+                    Button(
+                        onClick = { viewModel.applyDiscoveredHttps() },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(100.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32))
+                    ) {
+                        Text(
+                            text = "Applica https://${uiState.discoveredApiDomain}:${uiState.discoveredHttpsPort}/",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 12.sp
+                        )
+                    }
+                }
+            }
+        }
 
         // Scheda di configurazione DNS e API
         Card(
@@ -1493,7 +1536,7 @@ fun SettingsScreen(
                         ),
                         enabled = !uiState.connectionTesting && !uiState.isBusy
                     ) {
-                        Text("Scopri in Rete Locale", fontWeight = FontWeight.Bold, fontSize = 12.sp, maxLines = 1)
+                        Text("Scopri in Rete", fontWeight = FontWeight.Bold, fontSize = 12.sp, maxLines = 1)
                     }
 
                     Button(
@@ -1510,7 +1553,7 @@ fun SettingsScreen(
                             CircularProgressIndicator(strokeWidth = 2.dp, modifier = Modifier.size(16.dp).padding(end = 4.dp))
                             Text("Test...", fontSize = 12.sp)
                         } else {
-                            Text("Testa Connessione API", fontWeight = FontWeight.Bold, fontSize = 12.sp, maxLines = 1)
+                            Text("Testa", fontWeight = FontWeight.Bold, fontSize = 12.sp, maxLines = 1)
                         }
                     }
                 }
@@ -1556,6 +1599,65 @@ fun SettingsScreen(
                         checked = uiState.isSimulated,
                         onCheckedChange = { viewModel.toggleSimulation(it) }
                     )
+                }
+            }
+        }
+
+        // SCHEDA IMPOSTAZIONI DI CONNESSIONE SICURA (COME APP UFFICIALE ILIADBOX)
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+            shape = RoundedCornerShape(24.dp)
+        ) {
+            Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                Text(
+                    text = "IMPOSTAZIONI DI CONNESSIONE SICURA",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    letterSpacing = 1.sp
+                )
+
+                Text(
+                    text = "Puoi personalizzare o inserire il nome di dominio e la porta HTTPS della tua iliadbox (visibili nell'app ufficiale iliadbox o ottenuti con 'Testa').",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                // Nome del dominio
+                OutlinedTextField(
+                    value = domainInput,
+                    onValueChange = { domainInput = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Nome del dominio") },
+                    placeholder = { Text("es. 7rkyjjfc.ibxos.it") },
+                    shape = RoundedCornerShape(12.dp),
+                    singleLine = true
+                )
+
+                // Porta
+                OutlinedTextField(
+                    value = portInput,
+                    onValueChange = { portInput = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Porta") },
+                    placeholder = { Text("297") },
+                    shape = RoundedCornerShape(12.dp),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    singleLine = true
+                )
+
+                Button(
+                    onClick = {
+                        viewModel.setCustomDomainAndPort(domainInput, portInput)
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(100.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                    enabled = domainInput.isNotBlank() && portInput.isNotBlank()
+                ) {
+                    Text("Salvare le modifiche", fontWeight = FontWeight.Bold, fontSize = 13.sp)
                 }
             }
         }
@@ -1606,6 +1708,26 @@ fun SettingsScreen(
                     ) {
                         Text("Versione Principale API", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Text("v${uiState.discoveredApiVersionMajor}", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                    }
+
+                    if (uiState.discoveredApiDomain.isNotEmpty()) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text("Dominio Sicuro", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(uiState.discoveredApiDomain, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                        }
+                    }
+
+                    if (uiState.discoveredHttpsPort > 0) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text("Porta HTTPS", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("${uiState.discoveredHttpsPort}", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                        }
                     }
 
                     Row(

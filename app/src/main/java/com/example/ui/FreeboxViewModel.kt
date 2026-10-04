@@ -74,6 +74,8 @@ data class FreeboxUiState(
     val discoveredApiVersionMajor: String = "3",
     val discoveredDeviceName: String = "Freebox Server",
     val discoveredBoxModelName: String = "Freebox Server",
+    val discoveredApiDomain: String = "",
+    val discoveredHttpsPort: Int = 0,
     val discoveredHttpsAvailable: Boolean = false,
 
     // Files
@@ -125,7 +127,10 @@ class FreeboxViewModel(application: Application) : AndroidViewModel(application)
                 discoveredApiBaseUrl = repository.discoveredApiBaseUrl.value,
                 discoveredApiVersionMajor = repository.discoveredApiVersionMajor.value,
                 discoveredDeviceName = repository.discoveredDeviceName.value,
-                discoveredBoxModelName = repository.discoveredBoxModelName.value
+                discoveredBoxModelName = repository.discoveredBoxModelName.value,
+                discoveredApiDomain = repository.discoveredApiDomain.value,
+                discoveredHttpsPort = repository.discoveredHttpsPort.value,
+                discoveredHttpsAvailable = repository.discoveredHttpsAvailable.value
             )
         }
 
@@ -163,6 +168,16 @@ class FreeboxViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch {
             repository.discoveredBoxModelName.collect { value ->
                 _uiState.update { it.copy(discoveredBoxModelName = value) }
+            }
+        }
+        viewModelScope.launch {
+            repository.discoveredApiDomain.collect { value ->
+                _uiState.update { it.copy(discoveredApiDomain = value) }
+            }
+        }
+        viewModelScope.launch {
+            repository.discoveredHttpsPort.collect { value ->
+                _uiState.update { it.copy(discoveredHttpsPort = value) }
             }
         }
         viewModelScope.launch {
@@ -294,6 +309,36 @@ class FreeboxViewModel(application: Application) : AndroidViewModel(application)
                         error = "Test di connessione fallito: ${ex.message}. Controlla l'URL o il Wi-Fi."
                     )
                 }
+            }
+        }
+    }
+
+    fun applyDiscoveredHttps() {
+        val domain = _uiState.value.discoveredApiDomain
+        val port = _uiState.value.discoveredHttpsPort
+        if (domain.isNotBlank() && port > 0) {
+            val secureUrl = "https://$domain:$port/"
+            repository.setCustomDomainAndPort(domain, port)
+            _uiState.update {
+                it.copy(
+                    boxUrl = secureUrl,
+                    feedback = "Endpoint aggiornato alla connessione sicura HTTPS: $secureUrl"
+                )
+            }
+        }
+    }
+
+    fun setCustomDomainAndPort(domain: String, portStr: String) {
+        val port = portStr.trim().toIntOrNull() ?: 297
+        val cleanDomain = domain.trim().removePrefix("https://").removePrefix("http://").removeSuffix("/")
+        if (cleanDomain.isNotBlank()) {
+            val secureUrl = "https://$cleanDomain:$port/"
+            repository.setCustomDomainAndPort(cleanDomain, port)
+            _uiState.update {
+                it.copy(
+                    boxUrl = secureUrl,
+                    feedback = "Connessione sicura impostata su: $secureUrl"
+                )
             }
         }
     }
