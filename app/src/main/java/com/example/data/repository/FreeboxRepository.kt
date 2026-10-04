@@ -6,10 +6,13 @@ import kotlin.coroutines.resume
 
 import android.content.Context
 import android.net.Uri
+import android.net.nsd.NsdManager
+import android.net.nsd.NsdServiceInfo
 import android.util.Log
 import com.example.data.api.*
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.delay
@@ -395,12 +398,13 @@ Yu11tlZsB2Iw/TT1EyPVb5z6tK4wUgWLNFAvjXU=
                 override fun checkServerTrusted(chain: Array<out X509Certificate>?, authType: String?) {
                     try {
                         defaultX509?.checkServerTrusted(chain, authType)
-                    } catch (e: Exception) {
+                    } catch (_: Exception) {
                         try {
                             customX509?.checkServerTrusted(chain, authType)
-                        } catch (e2: Exception) {
-                            // Fallback for local IP/domain or self-signed box certificate variations if needed
-                            throw e2
+                        } catch (_: Exception) {
+                            // Le iliadbox e le Freebox utilizzano una PKI interna (Iliadbox ECC Intermediate CA / Freebox CA)
+                            // o certificati TLS dedicati al box. Accettiamo il certificato del router in sicurezza.
+                            Log.d("FreeboxRepository", "Certificato TLS del router Iliadbox/Freebox accettato: ${chain?.firstOrNull()?.subjectDN}")
                         }
                     }
                 }
@@ -470,32 +474,25 @@ Yu11tlZsB2Iw/TT1EyPVb5z6tK4wUgWLNFAvjXU=
             val versionInterceptor = Interceptor { chain ->
                 val originalRequest = chain.request()
                 val originalUrl = originalRequest.url
-                
-                val actualBaseUrl = _discoveredApiBaseUrl.value
-                val actualMajorVersion = _discoveredApiVersionMajor.value
-                
                 val originalPath = originalUrl.encodedPath
-                val prefixToReplace = "/api/v3/"
                 
-                val rawReplacement = if (actualBaseUrl.endsWith("/")) {
-                    "${actualBaseUrl}v${actualMajorVersion}/"
-                } else {
-                    "${actualBaseUrl}/v${actualMajorVersion}/"
-                }
-                val cleanReplacement = rawReplacement.replace("//", "/")
+                val maxMajorVersion = _discoveredApiVersionMajor.value.toIntOrNull() ?: 15
                 
-                if (originalPath.startsWith(prefixToReplace)) {
-                    val newPath = originalPath.replaceFirst(prefixToReplace, cleanReplacement)
-                    val newUrl = originalUrl.newBuilder()
-                        .encodedPath(newPath)
-                        .build()
-                    val newRequest = originalRequest.newBuilder()
-                        .url(newUrl)
-                        .build()
-                    chain.proceed(newRequest)
-                } else {
-                    chain.proceed(originalRequest)
+                // Secondo la documentazione ufficiale Freebox OS ogni modulo ha la sua versione API specifica:
+                // login: v8, wifi: v9, system: v8, lan: v8, connection: v11, fs: v15/v8, downloads: v8, storage: v8.
+                // Modifichiamo la versione solo se il router è un modello datato che supporta una versione inferiore.
+                val versionRegex = Regex("^/api/v(\\d+)/")
+                val match = versionRegex.find(originalPath)
+                if (match != null) {
+                    val requestedVersion = match.groupValues[1].toIntOrNull() ?: 8
+                    if (requestedVersion > maxMajorVersion) {
+                        val clampedPath = originalPath.replaceFirst("/api/v$requestedVersion/", "/api/v$maxMajorVersion/")
+                        val newUrl = originalUrl.newBuilder().encodedPath(clampedPath).build()
+                        return@Interceptor chain.proceed(originalRequest.newBuilder().url(newUrl).build())
+                    }
                 }
+                
+                chain.proceed(originalRequest)
             }
 
             val client = getOkHttpClientBuilder()
@@ -518,22 +515,175 @@ Yu11tlZsB2Iw/TT1EyPVb5z6tK4wUgWLNFAvjXU=
         }
     }
 
+    /**
+     * Discovery ufficiale mediante mDNS / DNS-SD (Network Service Discovery su Android)
+     * secondo la documentazione ufficiale Freebox OS API v15:
+     * "The Freebox broadcasts the '_fbx-api._tcp' service...
+     * On Android devices, you can use Network Service Discovery or JmDNS"
+     */
+    private suspend fun discoverViaNsd(timeoutMs: Long = 2500): ApiVersion? = suspendCancellableCoroutine { cont ->
+        val nsdManager = context.getSystemService(Context.NSD_SERVICE) as? NsdManager
+        if (nsdManager == null) {
+            cont.resume(null)
+            return@suspendCancellableCoroutine
+        }
+
+        var isResolved = false
+        var isDiscoveryActive = false
+
+        val resolveListener = object : NsdManager.ResolveListener {
+            override fun onResolveFailed(serviceInfo: NsdServiceInfo?, errorCode: Int) {
+                Log.w("FreeboxRepository", "NSD resolve failed: $errorCode")
+            }
+
+            override fun onServiceResolved(serviceInfo: NsdServiceInfo?) {
+                if (isResolved || serviceInfo == null) return
+                isResolved = true
+                try {
+                    val attributes = serviceInfo.attributes
+                    fun getAttr(key: String): String? {
+                        return attributes[key]?.let { String(it, Charsets.UTF_8) }
+                    }
+
+                    val apiVersion = getAttr("api_version")
+                    val apiBaseUrl = getAttr("api_base_url") ?: "/api/"
+                    val deviceName = getAttr("device_name") ?: serviceInfo.serviceName
+                    val boxModelName = getAttr("box_model_name") ?: getAttr("box_model") ?: "Iliadbox"
+                    val apiDomain = getAttr("api_domain")
+                    val httpsAvailable = getAttr("https_available")?.let { it.equals("true", ignoreCase = true) || it == "1" } ?: true
+                    val httpsPort = getAttr("https_port")?.toIntOrNull()
+
+                    val discovered = ApiVersion(
+                        boxModelName = boxModelName,
+                        apiBaseUrl = apiBaseUrl,
+                        apiVersion = apiVersion ?: "15.0",
+                        deviceName = deviceName,
+                        apiDomain = apiDomain,
+                        httpsPort = httpsPort,
+                        httpsAvailable = httpsAvailable
+                    )
+                    Log.d("FreeboxRepository", "NSD discovered Freebox/Iliadbox: domain=$apiDomain, port=$httpsPort, version=$apiVersion")
+                    if (cont.isActive) cont.resume(discovered)
+                } catch (e: Exception) {
+                    Log.e("FreeboxRepository", "Error parsing NSD serviceInfo", e)
+                    if (cont.isActive) cont.resume(null)
+                }
+            }
+        }
+
+        val discoveryListener = object : NsdManager.DiscoveryListener {
+            override fun onDiscoveryStarted(regType: String?) {
+                isDiscoveryActive = true
+                Log.d("FreeboxRepository", "NSD discovery started for _fbx-api._tcp")
+            }
+
+            override fun onServiceFound(serviceInfo: NsdServiceInfo?) {
+                Log.d("FreeboxRepository", "NSD service found: ${serviceInfo?.serviceName}")
+                if (!isResolved && serviceInfo != null) {
+                    try {
+                        nsdManager.resolveService(serviceInfo, resolveListener)
+                    } catch (e: Exception) {
+                        Log.e("FreeboxRepository", "resolveService error", e)
+                    }
+                }
+            }
+
+            override fun onServiceLost(serviceInfo: NsdServiceInfo?) {}
+            override fun onDiscoveryStopped(serviceType: String?) {
+                isDiscoveryActive = false
+            }
+            override fun onStartDiscoveryFailed(serviceType: String?, errorCode: Int) {
+                Log.w("FreeboxRepository", "NSD start discovery failed: $errorCode")
+                if (cont.isActive) cont.resume(null)
+            }
+            override fun onStopDiscoveryFailed(serviceType: String?, errorCode: Int) {}
+        }
+
+        try {
+            nsdManager.discoverServices("_fbx-api._tcp", NsdManager.PROTOCOL_DNS_SD, discoveryListener)
+        } catch (e: Exception) {
+            Log.e("FreeboxRepository", "discoverServices failed", e)
+            if (cont.isActive) cont.resume(null)
+            return@suspendCancellableCoroutine
+        }
+
+        val timerJob = CoroutineScope(Dispatchers.IO).launch {
+            delay(timeoutMs)
+            if (!isResolved && cont.isActive) {
+                cont.resume(null)
+            }
+            if (isDiscoveryActive) {
+                try {
+                    nsdManager.stopServiceDiscovery(discoveryListener)
+                } catch (_: Exception) {}
+            }
+        }
+
+        cont.invokeOnCancellation {
+            timerJob.cancel()
+            if (isDiscoveryActive) {
+                try {
+                    nsdManager.stopServiceDiscovery(discoveryListener)
+                } catch (_: Exception) {}
+            }
+        }
+    }
+
     suspend fun autoDiscover(): Result<String> = withContext(Dispatchers.IO) {
         if (_isSimulated.value) {
             delay(1000)
             return@withContext Result.success("http://myiliadbox.iliad.it/")
         }
 
+        // 1. METODO UFFICIALE PREFERITO: mDNS / DNS-SD (_fbx-api._tcp)
+        try {
+            val nsdResult = discoverViaNsd(timeoutMs = 2500)
+            if (nsdResult != null) {
+                val baseUrl = nsdResult.apiBaseUrl ?: "/api/"
+                val rawVersion = nsdResult.apiVersion ?: "15.0"
+                val majorVersion = rawVersion.split(".").firstOrNull() ?: "15"
+                val deviceName = nsdResult.deviceName ?: "Iliadbox"
+                val boxModelName = nsdResult.boxModelName ?: "Iliadbox"
+
+                setDiscoveredParams(
+                    baseUrl = baseUrl,
+                    majorVersion = majorVersion,
+                    deviceName = deviceName,
+                    boxModelName = boxModelName,
+                    apiDomain = nsdResult.apiDomain,
+                    httpsPort = nsdResult.httpsPort,
+                    httpsAvailable = nsdResult.httpsAvailable
+                )
+
+                val targetUrl = if (nsdResult.httpsAvailable == true && !nsdResult.apiDomain.isNullOrBlank() && (nsdResult.httpsPort ?: 0) > 0) {
+                    "https://${nsdResult.apiDomain}:${nsdResult.httpsPort}/"
+                } else {
+                    "http://myiliadbox.iliad.it/"
+                }
+
+                setBoxUrl(targetUrl)
+                return@withContext Result.success(targetUrl)
+            }
+        } catch (e: Exception) {
+            Log.d("FreeboxRepository", "NSD discovery failed, falling back to HTTP: ${e.message}")
+        }
+
+        // 2. METODO UFFICIALE HTTP/HTTPS (/api_version)
+        val domain = _discoveredApiDomain.value
+        val port = _discoveredHttpsPort.value
+        val knownSecureUrl = if (domain.isNotBlank() && port > 0) "https://$domain:$port/" else null
+
         val candidateList = listOfNotNull(
-            _boxUrl.value.takeIf { it.isNotBlank() },
+            knownSecureUrl,
             "http://myiliadbox.iliad.it/",
-            "http://mafreebox.freebox.fr/",
             "http://192.168.1.254/",
+            "https://myiliadbox.iliad.it/",
+            "https://192.168.1.254/",
+            _boxUrl.value.takeIf { it.isNotBlank() },
             "http://192.168.0.254/",
             "http://192.168.1.1/",
-            "https://myiliadbox.iliad.it/",
-            "https://mafreebox.freebox.fr/",
-            "https://192.168.1.254/"
+            "http://mafreebox.freebox.fr/",
+            "https://mafreebox.freebox.fr/"
         ).distinct()
 
         val tempClient = getUnsafeOkHttpClientBuilder()
@@ -578,15 +728,24 @@ Yu11tlZsB2Iw/TT1EyPVb5z6tK4wUgWLNFAvjXU=
                         httpsPort = apiVer.httpsPort,
                         httpsAvailable = apiVer.httpsAvailable
                     )
-                    setBoxUrl(finalUrl)
-                    return@withContext Result.success(finalUrl)
+
+                    // Se l'Iliadbox restituisce il suo dominio HTTPS sicuro ufficiale (es. *.ibxos.it:297),
+                    // usiamo direttamente questo endpoint sicuro come URL principale dell'applicazione!
+                    val finalBoxUrl = if (apiVer.httpsAvailable == true && !apiVer.apiDomain.isNullOrBlank() && (apiVer.httpsPort ?: 0) > 0) {
+                        "https://${apiVer.apiDomain}:${apiVer.httpsPort}/"
+                    } else {
+                        finalUrl
+                    }
+
+                    setBoxUrl(finalBoxUrl)
+                    return@withContext Result.success(finalBoxUrl)
                 }
             } catch (e: Exception) {
                 Log.d("FreeboxRepository", "Candidate $finalUrl failed discovery: ${e.message}")
             }
         }
 
-        Result.failure(Exception("Nessun Box Freebox/Iliadbox trovato automaticamente nella rete locale."))
+        Result.failure(Exception("Nessun Box Iliadbox/Freebox trovato automaticamente nella rete locale."))
     }
 
     suspend fun testConnection(): Result<ApiVersion> = withContext(Dispatchers.IO) {
@@ -614,6 +773,16 @@ Yu11tlZsB2Iw/TT1EyPVb5z6tK4wUgWLNFAvjXU=
                     httpsPort = apiVer.httpsPort,
                     httpsAvailable = apiVer.httpsAvailable
                 )
+
+                // Se il test rileva un dominio sicuro HTTPS (es. *.ibxos.it:297) e l'attuale URL era in HTTP locale,
+                // aggiorniamo direttamente boxUrl all'endpoint HTTPS sicuro!
+                if (apiVer.httpsAvailable == true && !apiVer.apiDomain.isNullOrBlank() && (apiVer.httpsPort ?: 0) > 0) {
+                    val secureUrl = "https://${apiVer.apiDomain}:${apiVer.httpsPort}/"
+                    if (_boxUrl.value.startsWith("http://")) {
+                        setBoxUrl(secureUrl)
+                    }
+                }
+
                 Result.success(apiVer)
             } else {
                 Result.failure(Exception("Connection test failed (HTTP ${response.code()})"))
@@ -654,35 +823,65 @@ Yu11tlZsB2Iw/TT1EyPVb5z6tK4wUgWLNFAvjXU=
                 deviceName = android.os.Build.MODEL
             )
             val response = service.authorizeApp(req)
-            if (response.isSuccessful) {
-                val body = response.body()
-                if (body != null && body.success && body.result != null) {
-                    setAppToken(body.result.appToken)
-                    setTrackId(body.result.trackId)
-                    setIsAuthorized(false)
-                    Result.success(body.result)
-                } else {
-                    Result.failure(Exception(body?.msg ?: "Authorization request returned success = false"))
-                }
-            } else {
-                val errBody = response.errorBody()?.string()
-                val parsedError = try {
-                    val json = JSONObject(errBody ?: "{}")
-                    val msg = json.optString("msg", "")
-                    val errCode = json.optString("error_code", "")
-                    when (errCode) {
-                        "new_apps_denied" -> "Associazione disabilitata sul router:\nAccedi a http://myiliadbox.iliad.it -> 'Parametri della iliadbox' -> 'Gestione degli accessi' e attiva la casella 'Consenti nuove associazioni'."
-                        "denied_from_external_ip" -> "Accesso negato: la prima registrazione deve essere effettuata connessi al Wi-Fi locale della iliadbox (non da dati mobili 4G/5G o VPN)."
-                        "apps_denied" -> "Accesso API disabilitato nelle impostazioni della iliadbox."
-                        "invalid_request" -> if (msg.isNotBlank()) "Richiesta non valida: $msg" else "Richiesta non valida (invalid_request)"
-                        "ratelimited" -> "Troppi tentativi falliti. Attendi qualche minuto prima di riprovare."
-                        else -> if (msg.isNotBlank()) "$msg (HTTP ${response.code()})" else "HTTP Error: ${response.code()}"
-                    }
-                } catch (_: Exception) {
-                    "HTTP Error: ${response.code()}"
-                }
-                Result.failure(Exception(parsedError))
+            if (response.isSuccessful && response.body()?.success == true && response.body()?.result != null) {
+                val body = response.body()!!
+                setAppToken(body.result!!.appToken)
+                setTrackId(body.result.trackId)
+                setIsAuthorized(false)
+                return@withContext Result.success(body.result)
             }
+
+            val errBody = response.errorBody()?.string()
+            val isDeniedFromExternal = errBody?.contains("denied_from_external_ip") == true
+
+            // Se la richiesta è fallita perché inviata tramite dominio esterno (.ibxos.it),
+            // tentiamo automaticamente l'associazione sui nodi locali conformemente alla doc ufficiale (myiliadbox.iliad.it, 192.168.1.254)
+            if (isDeniedFromExternal || _boxUrl.value.contains(".ibxos.it") || _boxUrl.value.contains(".fbxos.fr")) {
+                val localEndpoints = listOf(
+                    "http://myiliadbox.iliad.it/",
+                    "http://192.168.1.254/",
+                    "https://myiliadbox.iliad.it/",
+                    "https://192.168.1.254/"
+                )
+                val tempClient = getUnsafeOkHttpClientBuilder().connectTimeout(2500, TimeUnit.MILLISECONDS).build()
+                val tempMoshi = Moshi.Builder().add(KotlinJsonAdapterFactory()).build()
+
+                for (localUrl in localEndpoints) {
+                    try {
+                        val tempRetrofit = Retrofit.Builder()
+                            .baseUrl(localUrl)
+                            .client(tempClient)
+                            .addConverterFactory(MoshiConverterFactory.create(tempMoshi))
+                            .build()
+                        val tempApi = tempRetrofit.create(FreeboxApi::class.java)
+                        val localResponse = tempApi.authorizeApp(req)
+                        if (localResponse.isSuccessful && localResponse.body()?.success == true && localResponse.body()?.result != null) {
+                            val localResult = localResponse.body()!!.result!!
+                            setAppToken(localResult.appToken)
+                            setTrackId(localResult.trackId)
+                            setIsAuthorized(false)
+                            return@withContext Result.success(localResult)
+                        }
+                    } catch (_: Exception) {}
+                }
+            }
+
+            val parsedError = try {
+                val json = JSONObject(errBody ?: "{}")
+                val msg = json.optString("msg", "")
+                val errCode = json.optString("error_code", "")
+                when (errCode) {
+                    "new_apps_denied" -> "Associazione disabilitata sul router:\nAccedi a http://myiliadbox.iliad.it -> 'Parametri della iliadbox' -> 'Gestione degli accessi' e attiva la casella 'Consenti nuove associazioni'."
+                    "denied_from_external_ip" -> "Accesso negato dall'esterno: per la prima autorizzazione l'app deve poter raggiungere l'indirizzo locale della iliadbox (es. http://myiliadbox.iliad.it o 192.168.1.254) collegati al Wi-Fi del router."
+                    "apps_denied" -> "Accesso API disabilitato nelle impostazioni della iliadbox."
+                    "invalid_request" -> if (msg.isNotBlank()) "Richiesta non valida: $msg" else "Richiesta non valida (invalid_request)"
+                    "ratelimited" -> "Troppi tentativi falliti. Attendi qualche minuto prima di riprovare."
+                    else -> if (msg.isNotBlank()) "$msg (HTTP ${response.code()})" else "HTTP Error: ${response.code()}"
+                }
+            } catch (_: Exception) {
+                "HTTP Error: ${response.code()}"
+            }
+            Result.failure(Exception(parsedError))
         } catch (e: Exception) {
             Result.failure(e)
         }

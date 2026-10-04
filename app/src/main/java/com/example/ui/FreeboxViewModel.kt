@@ -293,12 +293,13 @@ class FreeboxViewModel(application: Application) : AndroidViewModel(application)
             repository.setBoxUrl(_uiState.value.boxUrl)
             val result = repository.testConnection()
             result.onSuccess { apiVersion ->
-                val info = "Connesso a ${apiVersion.boxModelName ?: "ItalianFreebox"} (API v${apiVersion.apiVersion ?: "3"})"
+                val info = "Connesso a ${apiVersion.boxModelName ?: "Iliadbox"} (API v${apiVersion.apiVersion ?: "3"})"
                 _uiState.update {
                     it.copy(
                         connectionTesting = false,
                         testedApiVersion = info,
-                        feedback = "Connesso con successo! $info"
+                        feedback = "Connesso con successo! $info",
+                        boxUrl = repository.boxUrl.value
                     )
                 }
             }.onFailure { ex ->

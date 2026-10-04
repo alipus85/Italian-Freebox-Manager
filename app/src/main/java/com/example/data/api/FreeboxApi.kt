@@ -417,31 +417,34 @@ interface FreeboxApi {
     @GET("api_version")
     suspend fun getApiVersion(): Response<ApiVersion>
 
-    @POST("api/v3/login/authorize/")
+    // Login API (v8)
+    @POST("api/v8/login/authorize/")
     suspend fun authorizeApp(@Body request: AuthorizeRequest): Response<AuthorizeResponse>
 
-    @GET("api/v3/login/authorize/{track_id}")
+    @GET("api/v8/login/authorize/{track_id}")
     suspend fun getAuthTrackStatus(@Path("track_id") trackId: Int): Response<TrackResponse>
 
-    @GET("api/v3/login/")
+    @GET("api/v8/login/")
     suspend fun getLoginChallenge(): Response<LoginResponse>
 
-    @POST("api/v3/login/session/")
+    @POST("api/v8/login/session/")
     suspend fun login(@Body request: SessionRequest): Response<SessionResponse>
 
-    @POST("api/v3/login/logout/")
+    @POST("api/v8/login/logout/")
     suspend fun logout(@Header("X-Fbx-App-Auth") sessionToken: String): Response<CommonResponse>
 
-    @GET("api/v3/wifi/config/")
+    // Wi-Fi API (v9)
+    @GET("api/v9/wifi/config/")
     suspend fun getWifiConfig(@Header("X-Fbx-App-Auth") sessionToken: String): Response<WifiConfigResponse>
 
-    @PUT("api/v3/wifi/config/")
+    @PUT("api/v9/wifi/config/")
     suspend fun updateWifiConfig(
         @Header("X-Fbx-App-Auth") sessionToken: String,
         @Body request: WifiConfigUpdateRequest
     ): Response<CommonResponse>
 
-    @POST("api/v3/system/reboot/")
+    // System API (v8)
+    @POST("api/v8/system/reboot/")
     suspend fun rebootSystem(@Header("X-Fbx-App-Auth") sessionToken: String): Response<CommonResponse>
 
     @POST
@@ -453,10 +456,12 @@ interface FreeboxApi {
     @GET("api/v8/system/")
     suspend fun getSystemConfig(@Header("X-Fbx-App-Auth") sessionToken: String): Response<SystemConfigResponse>
 
-    @GET("api/v3/lan/browser/pub/")
+    // LAN Browser API (v8)
+    @GET("api/v8/lan/browser/pub/")
     suspend fun getLanHosts(@Header("X-Fbx-App-Auth") sessionToken: String): Response<LanHostsResponse>
 
-    @GET("api/v3/connection/")
+    // Connection API (v11)
+    @GET("api/v11/connection/")
     suspend fun getConnectionStatus(@Header("X-Fbx-App-Auth") sessionToken: String): Response<ConnectionResponse>
 
     @GET("api/v8/fs/ls/{path}")
