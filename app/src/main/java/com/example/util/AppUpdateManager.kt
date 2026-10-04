@@ -140,16 +140,20 @@ class AppUpdateManager(private val context: Context) {
             // 2. Richiedi gli ultimi commit recenti
             val recentCommits = fetchRecentCommits(cleanRepo, token)
 
-            // 3. Valutazione versione
+            // 3. Valutazione versione e tag
             val currentVersion = BuildConfig.VERSION_NAME
+            val resolvedRemoteVersion = extractVersionNumber(releaseName, body, tagName)
+            val displayVersion = resolvedRemoteVersion 
+                ?: (if (tagName.equals("latest", ignoreCase = true)) "1.0.x" else tagName.removePrefix("v").removePrefix("V"))
+
             val isNewer = if (forceCheck) {
                 true
             } else {
-                isRemoteVersionNewer(remoteTag = tagName, localVersion = currentVersion)
+                isRemoteVersionNewer(remoteVersionStr = displayVersion, localVersionStr = currentVersion)
             }
 
             val release = GitHubRelease(
-                tagName = tagName,
+                tagName = if (tagName.equals("latest", ignoreCase = true) && !resolvedRemoteVersion.isNullOrBlank()) "v$resolvedRemoteVersion" else tagName,
                 name = releaseName,
                 body = body,
                 apkDownloadUrl = apkUrl,
@@ -159,9 +163,9 @@ class AppUpdateManager(private val context: Context) {
             )
 
             UpdateCheckResult(
-                isUpdateAvailable = isNewer && !apkUrl.isNullOrBlank(),
+                isUpdateAvailable = (isNewer || forceCheck) && !apkUrl.isNullOrBlank(),
                 currentVersion = currentVersion,
-                latestVersion = tagName.removePrefix("v"),
+                latestVersion = displayVersion,
                 release = release,
                 recentCommits = recentCommits
             )
@@ -247,7 +251,7 @@ class AppUpdateManager(private val context: Context) {
             val body = response.body ?: return@withContext Result.failure(Exception("Risposta vuota durante il download"))
             val totalBytes = body.contentLength()
 
-            val targetDir = context.getExternalFilesDir(null) ?: context.cacheDir
+            val targetDir = File(context.cacheDir, "apk_updates")
             if (!targetDir.exists()) targetDir.mkdirs()
             val apkFile = File(targetDir, APK_FILE_NAME)
             if (apkFile.exists()) apkFile.delete()
@@ -279,8 +283,8 @@ class AppUpdateManager(private val context: Context) {
      */
     fun installApk(apkFile: File): Result<Unit> {
         return try {
-            if (!apkFile.exists()) {
-                return Result.failure(Exception("Il file APK non esiste."))
+            if (!apkFile.exists() || apkFile.length() == 0L) {
+                return Result.failure(Exception("Il file APK non esiste o non è stato scaricato correttamente."))
             }
 
             // Verifica autorizzazione per installare pacchetti su Android 8.0+
@@ -291,6 +295,7 @@ class AppUpdateManager(private val context: Context) {
                         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                     }
                     context.startActivity(manageIntent)
+                    return Result.failure(Exception("Autorizzazione di installazione richiesta. Abilita l'opzione 'Consenti da questa origine' nelle impostazioni e tocca nuovamente 'Installa'."))
                 }
             }
 
@@ -301,6 +306,15 @@ class AppUpdateManager(private val context: Context) {
                 setDataAndType(apkUri, "application/vnd.android.package-archive")
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                putExtra(Intent.EXTRA_NOT_UNKNOWN_SOURCE, true)
+            }
+
+            // Concedi esplicitamente permessi di lettura alle activity delegate all'installazione
+            val resInfoList = context.packageManager.queryIntentActivities(installIntent, 0)
+            for (resolveInfo in resInfoList) {
+                val pkgName = resolveInfo.activityInfo.packageName
+                context.grantUriPermission(pkgName, apkUri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
 
             context.startActivity(installIntent)
@@ -311,16 +325,35 @@ class AppUpdateManager(private val context: Context) {
     }
 
     /**
+     * Estrae una versione semantica (es. 1.0.5) da stringhe di release o note.
+     */
+    private fun extractVersionNumber(vararg texts: String?): String? {
+        val versionRegex = Regex("""(?i)\b(?:v|version|versione|build\s*#)?\s*(\d+(?:\.\d+)+)\b""")
+        for (text in texts) {
+            if (text.isNullOrBlank()) continue
+            val match = versionRegex.find(text)
+            if (match != null) {
+                return match.groupValues[1]
+            }
+        }
+        return null
+    }
+
+    /**
      * Confronto semantico della versione o tag.
      */
-    private fun isRemoteVersionNewer(remoteTag: String, localVersion: String): Boolean {
-        val cleanRemote = remoteTag.trim().removePrefix("v").removePrefix("V")
-        val cleanLocal = localVersion.trim().removePrefix("v").removePrefix("V")
+    private fun isRemoteVersionNewer(remoteVersionStr: String, localVersionStr: String): Boolean {
+        val cleanRemote = remoteVersionStr.trim().removePrefix("v").removePrefix("V")
+        val cleanLocal = localVersionStr.trim().removePrefix("v").removePrefix("V")
 
         if (cleanRemote == cleanLocal) return false
 
         val remoteParts = cleanRemote.split(".").mapNotNull { it.takeWhile { c -> c.isDigit() }.toIntOrNull() }
         val localParts = cleanLocal.split(".").mapNotNull { it.takeWhile { c -> c.isDigit() }.toIntOrNull() }
+
+        if (remoteParts.isEmpty() && localParts.isNotEmpty()) {
+            return cleanRemote != cleanLocal && cleanRemote.isNotBlank()
+        }
 
         val maxLen = maxOf(remoteParts.size, localParts.size)
         for (i in 0 until maxLen) {

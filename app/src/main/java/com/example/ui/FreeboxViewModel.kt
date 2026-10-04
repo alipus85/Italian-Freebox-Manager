@@ -9,6 +9,7 @@ import com.example.data.repository.FreeboxRepository
 import com.example.util.AppUpdateManager
 import com.example.util.DownloadState
 import com.example.util.UpdateCheckResult
+import java.io.File
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -1102,7 +1103,12 @@ class FreeboxViewModel(application: Application) : AndroidViewModel(application)
             downloadResult.fold(
                 onSuccess = { file ->
                     _uiState.update { it.copy(downloadState = DownloadState.Success(file)) }
-                    updateManager.installApk(file)
+                    val installResult = updateManager.installApk(file)
+                    installResult.onFailure { error ->
+                        _uiState.update {
+                            it.copy(downloadState = DownloadState.Error(error.localizedMessage ?: "Errore installazione APK"))
+                        }
+                    }
                 },
                 onFailure = { error ->
                     _uiState.update {
@@ -1110,6 +1116,15 @@ class FreeboxViewModel(application: Application) : AndroidViewModel(application)
                     }
                 }
             )
+        }
+    }
+
+    fun installDownloadedApk(file: File) {
+        val installResult = updateManager.installApk(file)
+        installResult.onFailure { error ->
+            _uiState.update {
+                it.copy(downloadState = DownloadState.Error(error.localizedMessage ?: "Errore installazione APK"))
+            }
         }
     }
 

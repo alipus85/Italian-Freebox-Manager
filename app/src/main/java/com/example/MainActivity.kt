@@ -2341,25 +2341,49 @@ fun SettingsScreen(
                                         }
                                     }
                                     is DownloadState.Success -> {
-                                        Text(
-                                            text = "✅ APK scaricato. Avvio installazione...",
-                                            fontSize = 12.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Color(0xFF2E7D32)
-                                        )
+                                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                            Text(
+                                                text = "✅ APK scaricato con successo!",
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color(0xFF2E7D32)
+                                            )
+                                            Button(
+                                                onClick = { viewModel.installDownloadedApk(downloadState.apkFile) },
+                                                modifier = Modifier.fillMaxWidth(),
+                                                shape = RoundedCornerShape(100.dp),
+                                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32))
+                                            ) {
+                                                Text("📲 Apri Installer e Aggiorna APK", fontWeight = FontWeight.Bold)
+                                            }
+                                        }
                                     }
                                     is DownloadState.Error -> {
-                                        Text(
-                                            text = "❌ Errore download: ${downloadState.message}",
-                                            fontSize = 11.sp,
-                                            color = MaterialTheme.colorScheme.error
-                                        )
-                                        Button(
-                                            onClick = { viewModel.downloadAndInstallUpdate(context) },
-                                            modifier = Modifier.fillMaxWidth(),
-                                            shape = RoundedCornerShape(100.dp)
-                                        ) {
-                                            Text("Riprova Download")
+                                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                            Text(
+                                                text = "⚠️ ${downloadState.message}",
+                                                fontSize = 11.sp,
+                                                color = MaterialTheme.colorScheme.error
+                                            )
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                            ) {
+                                                Button(
+                                                    onClick = { viewModel.downloadAndInstallUpdate(context) },
+                                                    modifier = Modifier.weight(1f),
+                                                    shape = RoundedCornerShape(100.dp)
+                                                ) {
+                                                    Text("Riprova", fontSize = 11.sp)
+                                                }
+                                                OutlinedButton(
+                                                    onClick = { viewModel.resetDownloadState() },
+                                                    modifier = Modifier.weight(1f),
+                                                    shape = RoundedCornerShape(100.dp)
+                                                ) {
+                                                    Text("Annulla", fontSize = 11.sp)
+                                                }
+                                            }
                                         }
                                     }
                                     DownloadState.Idle -> {
