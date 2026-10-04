@@ -46,7 +46,7 @@ import javax.crypto.spec.SecretKeySpec
 class FreeboxRepository(private val context: Context) {
 
     companion object {
-        const val FREEBOX_APP_ID = "it.freebox.manager"
+        const val FREEBOX_APP_ID = "it.alipus85.italianfreebox.manager"
     }
 
     private val sharedPrefs = context.getSharedPreferences("freebox_prefs", Context.MODE_PRIVATE)
@@ -89,9 +89,6 @@ class FreeboxRepository(private val context: Context) {
 
     private val _discoveredHttpsAvailable = MutableStateFlow(sharedPrefs.getBoolean("https_available", false))
     val discoveredHttpsAvailable: StateFlow<Boolean> = _discoveredHttpsAvailable.asStateFlow()
-
-    private val _appPermissions = MutableStateFlow<Map<String, Boolean>>(emptyMap())
-    val appPermissions: StateFlow<Map<String, Boolean>> = _appPermissions.asStateFlow()
 
     private var apiService: FreeboxApi? = null
     private var currentSessionToken: String? = null
@@ -201,7 +198,6 @@ class FreeboxRepository(private val context: Context) {
         _isAuthorized.value = false
         currentSessionToken = null
         _sessionToken.value = ""
-        _appPermissions.value = emptyMap()
         _discoveredApiBaseUrl.value = "/api/"
         _discoveredApiVersionMajor.value = "3"
         _discoveredDeviceName.value = "Freebox Server"
@@ -822,9 +818,9 @@ Yu11tlZsB2Iw/TT1EyPVb5z6tK4wUgWLNFAvjXU=
         try {
             val req = AuthorizeRequest(
                 appId = FREEBOX_APP_ID,
-                appName = "ItalianFreebox",
+                appName = "ItalianFreebox Manager",
                 appVersion = "1.0",
-                deviceName = android.os.Build.MODEL.take(30).ifBlank { "Android" }
+                deviceName = android.os.Build.MODEL
             )
             val response = service.authorizeApp(req)
             if (response.isSuccessful && response.body()?.success == true && response.body()?.result != null) {
@@ -953,9 +949,6 @@ Yu11tlZsB2Iw/TT1EyPVb5z6tK4wUgWLNFAvjXU=
                 if (body != null && body.success && body.result?.sessionToken != null) {
                     currentSessionToken = body.result.sessionToken
                     _sessionToken.value = body.result.sessionToken!!
-                    if (body.result.permissions != null) {
-                        _appPermissions.value = body.result.permissions
-                    }
                     Result.success(body.result.sessionToken)
                 } else {
                     Result.failure(Exception(body?.msg ?: "Login failed: empty token"))

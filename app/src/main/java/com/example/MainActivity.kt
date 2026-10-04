@@ -2011,37 +2011,6 @@ fun SettingsScreen(
                     }
                 }
 
-                if (uiState.appPermissions.isNotEmpty()) {
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text("Permessi Router Concessi:", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface)
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            val perms = listOf(
-                                "explorer" to "File Explorer",
-                                "downloader" to "Download",
-                                "settings" to "Impostazioni"
-                            )
-                            perms.forEach { (key, label) ->
-                                val isGranted = uiState.appPermissions[key] == true
-                                Surface(
-                                    shape = RoundedCornerShape(8.dp),
-                                    color = if (isGranted) Color(0xFFE8F5E9) else Color(0xFFFFEBEE),
-                                    border = BorderStroke(1.dp, if (isGranted) Color(0xFF81C784) else Color(0xFFEF9A9A))
-                                ) {
-                                    Row(
-                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                    ) {
-                                        Text(if (isGranted) "✓" else "✕", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = if (isGranted) Color(0xFF2E7D32) else Color(0xFFC62828))
-                                        Text(label, fontSize = 11.sp, fontWeight = FontWeight.Medium, color = if (isGranted) Color(0xFF1B5E20) else Color(0xFFB71C1C))
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
                 Spacer(modifier = Modifier.height(8.dp))
 
                 Row(

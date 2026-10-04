@@ -53,7 +53,6 @@ data class FreeboxUiState(
     val authStatus: String = "",
     val appToken: String = "",
     val sessionToken: String = "",
-    val appPermissions: Map<String, Boolean> = emptyMap(),
     val connectionTesting: Boolean = false,
     val testedApiVersion: String? = null,
     val pairingDialogState: PairingDialogState = PairingDialogState.HIDDEN,
@@ -185,11 +184,6 @@ class FreeboxViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch {
             repository.discoveredHttpsAvailable.collect { value ->
                 _uiState.update { it.copy(discoveredHttpsAvailable = value) }
-            }
-        }
-        viewModelScope.launch {
-            repository.appPermissions.collect { perms ->
-                _uiState.update { it.copy(appPermissions = perms) }
             }
         }
 
