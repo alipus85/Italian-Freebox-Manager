@@ -23,7 +23,7 @@ import androidx.compose.material.icons.filled.Edit
 
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.DropdownMenu
@@ -1160,7 +1160,7 @@ fun FilesScreen(uiState: FreeboxUiState, viewModel: FreeboxViewModel) {
                         val parentPath = uiState.currentPath.substringBeforeLast("/", "")
                         viewModel.loadFiles(parentPath)
                     }) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Indietro")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Indietro")
                     }
                 }
                 Text(

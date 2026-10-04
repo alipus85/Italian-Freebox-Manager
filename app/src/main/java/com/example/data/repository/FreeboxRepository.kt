@@ -90,6 +90,9 @@ class FreeboxRepository(private val context: Context) {
     private val _discoveredHttpsAvailable = MutableStateFlow(sharedPrefs.getBoolean("https_available", false))
     val discoveredHttpsAvailable: StateFlow<Boolean> = _discoveredHttpsAvailable.asStateFlow()
 
+    private val _appPermissions = MutableStateFlow<Map<String, Boolean>>(emptyMap())
+    val appPermissions: StateFlow<Map<String, Boolean>> = _appPermissions.asStateFlow()
+
     private var apiService: FreeboxApi? = null
     private var currentSessionToken: String? = null
 
@@ -924,6 +927,19 @@ Yu11tlZsB2Iw/TT1EyPVb5z6tK4wUgWLNFAvjXU=
             delay(1000)
             currentSessionToken = "simulated_session_token_abc123"
             _sessionToken.value = "simulated_session_token_abc123"
+            _appPermissions.value = mapOf(
+                "settings" to true,
+                "contacts" to true,
+                "calls" to true,
+                "explorer" to true,
+                "downloader" to true,
+                "parental" to true,
+                "pvr" to true,
+                "tv" to true,
+                "wdo" to true,
+                "camera" to true,
+                "home" to true
+            )
             return@withContext Result.success(currentSessionToken!!)
         }
 
@@ -949,6 +965,9 @@ Yu11tlZsB2Iw/TT1EyPVb5z6tK4wUgWLNFAvjXU=
                 if (body != null && body.success && body.result?.sessionToken != null) {
                     currentSessionToken = body.result.sessionToken
                     _sessionToken.value = body.result.sessionToken!!
+                    if (body.result.permissions != null) {
+                        _appPermissions.value = body.result.permissions
+                    }
                     Result.success(body.result.sessionToken)
                 } else {
                     Result.failure(Exception(body?.msg ?: "Login failed: empty token"))
