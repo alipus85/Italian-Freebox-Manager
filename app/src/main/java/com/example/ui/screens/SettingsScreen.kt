@@ -27,6 +27,8 @@ import com.example.ui.FreeboxUiState
 import com.example.ui.FreeboxViewModel
 import com.example.ui.components.HandshakeStep
 import com.example.ui.theme.*
+import com.example.util.DownloadState
+import com.example.util.formatBytes
 
 @Composable
 fun SettingsScreen(
@@ -656,19 +658,137 @@ fun SettingsScreen(
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
                         shape = RoundedCornerShape(16.dp)
                     ) {
-                        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Text(
-                                text = "Nuova release disponibile: ${result.latestVersion}",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 13.sp
-                            )
-                            Button(
-                                onClick = { viewModel.downloadAndInstallUpdate(context) },
+                        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Row(
                                 modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(100.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = EmeraldGreen)
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text("📥 Scarica e Installa APK", fontWeight = FontWeight.Bold)
+                                Text(
+                                    text = "Nuova release: ${result.latestVersion}",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.5.sp,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                if (result.release != null && result.release.apkSize > 0) {
+                                    Text(
+                                        text = formatBytes(result.release.apkSize),
+                                        fontSize = 11.sp,
+                                        fontFamily = FontFamily.Monospace,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+
+                            when (val dlState = uiState.downloadState) {
+                                is DownloadState.Downloading -> {
+                                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                        LinearProgressIndicator(
+                                            progress = { dlState.progress },
+                                            modifier = Modifier.fillMaxWidth().height(6.dp),
+                                            color = IliadRed
+                                        )
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            Text(
+                                                text = "Download APK in corso...",
+                                                fontSize = 11.sp,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                            Text(
+                                                text = "${(dlState.progress * 100).toInt()}%",
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+                                    }
+                                }
+                                is DownloadState.Success -> {
+                                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        Surface(
+                                            shape = RoundedCornerShape(10.dp),
+                                            color = EmeraldGreen.copy(alpha = 0.12f),
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.padding(10.dp),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Text("✅", fontSize = 16.sp, modifier = Modifier.padding(end = 6.dp))
+                                                Text(
+                                                    text = "APK scaricato con successo!",
+                                                    color = EmeraldGreen,
+                                                    fontWeight = FontWeight.Bold,
+                                                    fontSize = 12.sp
+                                                )
+                                            }
+                                        }
+
+                                        Button(
+                                            onClick = { viewModel.installDownloadedApk(dlState.apkFile) },
+                                            modifier = Modifier.fillMaxWidth(),
+                                            shape = RoundedCornerShape(100.dp),
+                                            colors = ButtonDefaults.buttonColors(containerColor = EmeraldGreen)
+                                        ) {
+                                            Text("📲 Apri Installer e Aggiorna APK", fontWeight = FontWeight.Bold)
+                                        }
+
+                                        Surface(
+                                            shape = RoundedCornerShape(10.dp),
+                                            color = AmberWarning.copy(alpha = 0.12f),
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                                Text(
+                                                    text = "⚠️ Se compare 'Pacchetto in conflitto':",
+                                                    fontWeight = FontWeight.Bold,
+                                                    fontSize = 11.5.sp,
+                                                    color = MaterialTheme.colorScheme.onSurface
+                                                )
+                                                Text(
+                                                    text = "Android blocca l'aggiornamento quando l'app già installata ha una firma differente rispetto a questa release GitHub. Disinstalla prima l'app dal telefono e poi installa questo APK. I successivi aggiornamenti si installeranno normalmente.",
+                                                    fontSize = 11.sp,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    lineHeight = 15.sp
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                                is DownloadState.Error -> {
+                                    Surface(
+                                        shape = RoundedCornerShape(10.dp),
+                                        color = MaterialTheme.colorScheme.errorContainer,
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Text(
+                                            text = "Errore: ${dlState.message}",
+                                            color = MaterialTheme.colorScheme.onErrorContainer,
+                                            fontSize = 11.5.sp,
+                                            modifier = Modifier.padding(8.dp)
+                                        )
+                                    }
+                                    Button(
+                                        onClick = { viewModel.downloadAndInstallUpdate(context) },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        shape = RoundedCornerShape(100.dp),
+                                        colors = ButtonDefaults.buttonColors(containerColor = IliadRed)
+                                    ) {
+                                        Text("🔄 Riprova Download", fontWeight = FontWeight.Bold)
+                                    }
+                                }
+                                else -> {
+                                    Button(
+                                        onClick = { viewModel.downloadAndInstallUpdate(context) },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        shape = RoundedCornerShape(100.dp),
+                                        colors = ButtonDefaults.buttonColors(containerColor = EmeraldGreen)
+                                    ) {
+                                        Text("📥 Scarica e Installa APK", fontWeight = FontWeight.Bold)
+                                    }
+                                }
                             }
                         }
                     }
