@@ -2,40 +2,51 @@ package com.example.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// Iliad Brand Colors
-val IliadRed = Color(0xFFE62C2E)
-val IliadRedHover = Color(0xFFD0282A)
-val IliadRedDark = Color(0xFFB71C1C)
-val IliadRedLight = Color(0xFFFF5252)
+// Official Iliad Brand Colors
+val IliadRed = Color(0xFFE2001A)
+val IliadRedDark = Color(0xFFC40016)
+val IliadRedLight = Color(0xFFFFEBEE)
+val IliadRedContainer = Color(0xFFFFDAD6)
+val OnIliadRedContainer = Color(0xFF410002)
+val IliadRedHover = Color(0xFFB30013)
 
-// Dark Theme Surfaces (Deep, sleek Material 3)
+// Status & Accent Colors
+val EmeraldGreen = Color(0xFF2E7D32)
+val EmeraldGreenLight = Color(0xFFE8F5E9)
+val EmeraldGreenContainer = Color(0xFFC8E6C9)
+val AmberWarning = Color(0xFFFF9800)
+val AmberWarningLight = Color(0xFFFFF3E0)
+val IliadBlue = Color(0xFF1976D2)
+val IliadBlueLight = Color(0xFFE3F2FD)
+
+// Neutral Dark Mode
 val DarkBackground = Color(0xFF121212)
-val DarkSurface = Color(0xFF1E1E1E)
-val DarkSurfaceVariant = Color(0xFF282A2E)
-val DarkOutline = Color(0xFF3F4246)
-val DarkOnBackground = Color(0xFFE3E2E6)
-val DarkOnSurface = Color(0xFFE3E2E6)
-val DarkOnSurfaceVariant = Color(0xFFA0A3A8)
+val DarkSurface = Color(0xFF1E1E22)
+val DarkSurfaceVariant = Color(0xFF2A2A30)
+val DarkSurfaceCard = Color(0xFF24242A)
+val DarkOutline = Color(0xFF383842)
+val DarkOnSurface = Color(0xFFECEFF1)
+val DarkOnSurfaceVariant = Color(0xFFB0B3B8)
 
-// Light Theme Surfaces
-val LightBackground = Color(0xFFF8F9FA)
+// Neutral Light Mode
+val LightBackground = Color(0xFFF7F8FA)
 val LightSurface = Color(0xFFFFFFFF)
-val LightSurfaceVariant = Color(0xFFF1F3F5)
-val LightOutline = Color(0xFFE0E2E5)
-val LightOnBackground = Color(0xFF1C1B1F)
-val LightOnSurface = Color(0xFF1C1B1F)
+val LightSurfaceVariant = Color(0xFFF0F2F5)
+val LightSurfaceCard = Color(0xFFFFFFFF)
+val LightOutline = Color(0xFFE2E4E8)
+val LightOnSurface = Color(0xFF1A1C1E)
 val LightOnSurfaceVariant = Color(0xFF5F6368)
 
-// Containers & Accents
-val ContainerPink = Color(0xFFFFDAD6)
-val OnContainerPink = Color(0xFF410002)
+// Legacy compatibility
+val NaturalBackground = LightBackground
+val TextPrimary = LightOnSurface
+val TextSecondary = LightOnSurfaceVariant
+val ContainerPink = IliadRedContainer
+val OnContainerPink = OnIliadRedContainer
+val SurfaceGray = LightSurfaceVariant
+val BorderColor = LightOutline
 val PureWhite = Color(0xFFFFFFFF)
-
-// Status & Accents
-val CustomGreen = Color(0xFF4CAF50)
-val CustomGreenLight = Color(0xFFE8F5E9)
-val CustomGreenDark = Color(0xFF2E7D32)
-val CustomBlue = Color(0xFF2196F3)
-val CustomBlueLight = Color(0xFFE3F2FD)
-val CustomOrange = Color(0xFFFF9800)
-val CustomOrangeLight = Color(0xFFFFF3E0)
+val CustomGreen = EmeraldGreen
+val CustomGreenLight = EmeraldGreenLight
+val CustomBlue = IliadBlue
+val CustomBlueLight = IliadBlueLight

@@ -15,6 +15,9 @@
     <string name="action_guest_wifi">Rete Ospiti</string>
     <string name="action_parental">Controllo Genitori</string>
     <string name="title_settings">Impostazioni</string>
-    <string name="title_downloads">Downloads</string>
+    <string name="title_downloads">Torrent</string>
+    <string name="title_downloads_torrent">Torrent</string>
+    <string name="title_storage">Storage</string>
+    <string name="title_more">Altro</string>
     <string name="default_github_repo">alipus85/Italian-Freebox-Manager</string>
 </resources>

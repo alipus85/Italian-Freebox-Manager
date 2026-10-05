@@ -92,6 +92,10 @@ data class FreeboxUiState(
     val screenHistory: List<AppScreen> = listOf(AppScreen.HOME),
     val taskFiles: Map<Int, List<com.example.data.api.DownloadFile>> = emptyMap(),
     val expandedTaskIds: Set<Int> = emptySet(),
+    val storageTab: Int = 0,
+    val showWifiQrDialog: Boolean = false,
+    val wifiSsid: String = "Iliadbox-WiFi",
+    val wifiPassword: String = "",
 
     // System Metrics
     val systemUptime: String = "4 giorni, 12 ore",
@@ -213,6 +217,10 @@ class FreeboxViewModel(application: Application) : AndroidViewModel(application)
                 )
             }
         }
+    }
+
+    fun toggleWifiQrDialog(show: Boolean) {
+        _uiState.update { it.copy(showWifiQrDialog = show) }
     }
 
     fun navigateBack(): Boolean {

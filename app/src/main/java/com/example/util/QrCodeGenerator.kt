@@ -1,168 +1,241 @@
 package com.example.util
 
-import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.aspectRatio
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.unit.dp
-import java.security.MessageDigest
-
 /**
- * Generatore ed estrattore di matrice QR Code pura in Kotlin, ottimizzato
- * per la condivisione istantanea delle credenziali Wi-Fi.
+ * A lightweight, zero-dependency pure Kotlin QR Code generator (Model 2, Byte Mode, ECC Level M).
+ * Generates a boolean 2D matrix representing dark (true) and light (false) modules.
  */
-object QrMatrixGenerator {
-    private const val SIZE = 29 // Dimensione standard 29x29 (Versione 3)
+object QrCodeGenerator {
 
-    fun generateMatrix(text: String): Array<BooleanArray> {
-        val matrix = Array(SIZE) { BooleanArray(SIZE) }
-        val reserved = Array(SIZE) { BooleanArray(SIZE) }
+    // Galois Field (256) log and antilog tables for Reed-Solomon coding
+    private val expTable = IntArray(256)
+    private val logTable = IntArray(256)
 
-        // Posiziona i 3 Finder Patterns (7x7) negli angoli
-        placeFinderPattern(matrix, reserved, 0, 0)
-        placeFinderPattern(matrix, reserved, SIZE - 7, 0)
-        placeFinderPattern(matrix, reserved, 0, SIZE - 7)
+    init {
+        var x = 1
+        for (i in 0 until 255) {
+            expTable[i] = x
+            logTable[x] = i
+            x = x shl 1
+            if (x >= 256) {
+                x = x xor 0x11D
+            }
+        }
+        for (i in 255 until 512) {
+            // Unused in basic setup
+        }
+    }
 
-        // Separatori attorno ai finder
-        for (i in 0..7) {
-            if (i < SIZE) {
-                setReserved(matrix, reserved, 7, i, false)
-                setReserved(matrix, reserved, i, 7, false)
-                setReserved(matrix, reserved, SIZE - 8, i, false)
-                setReserved(matrix, reserved, i, SIZE - 8, false)
-                setReserved(matrix, reserved, 7, SIZE - 8 + (i % 8), false)
-                setReserved(matrix, reserved, SIZE - 8 + (i % 8), 7, false)
+    private fun gfMul(x: Int, y: Int): Int {
+        if (x == 0 || y == 0) return 0
+        return expTable[(logTable[x] + logTable[y]) % 255]
+    }
+
+    private fun computeRs(data: IntArray, ecCount: Int): IntArray {
+        var gen = intArrayOf(1)
+        for (i in 0 until ecCount) {
+            val factor = expTable[i]
+            val nextGen = IntArray(gen.size + 1)
+            for (j in gen.indices) {
+                nextGen[j] = nextGen[j] xor gfMul(gen[j], factor)
+                nextGen[j + 1] = nextGen[j + 1] xor gen[j]
+            }
+            gen = nextGen
+        }
+
+        val res = IntArray(ecCount)
+        for (b in data) {
+            val factor = b xor res[0]
+            for (j in 0 until ecCount - 1) {
+                res[j] = res[j + 1] xor gfMul(gen[j + 1], factor)
+            }
+            res[ecCount - 1] = gfMul(gen[ecCount], factor)
+        }
+        return res
+    }
+
+    /**
+     * Encodes a string into a 2D boolean array (QR matrix).
+     * Automatically chooses Version 2 (25x25), Version 4 (33x33), or Version 6 (41x41).
+     */
+    fun encode(text: String): Array<BooleanArray> {
+        val bytes = text.toByteArray(Charsets.UTF_8)
+        val len = bytes.size
+
+        // Choose version based on capacity for Byte mode with ECC Level M
+        val (version, totalDataBytes, ecBytes) = when {
+            len <= 26 -> Triple(2, 28, 16)
+            len <= 62 -> Triple(4, 64, 36)
+            else -> Triple(6, 108, 64)
+        }
+
+        val size = 17 + 4 * version
+        val matrix = Array(size) { BooleanArray(size) }
+        val isReserved = Array(size) { BooleanArray(size) }
+
+        // 1. Bitstream preparation
+        val bitBuffer = mutableListOf<Int>()
+        fun putBits(value: Int, numBits: Int) {
+            for (i in numBits - 1 downTo 0) {
+                bitBuffer.add((value shr i) and 1)
             }
         }
 
-        // Alignment pattern at (20, 20) for 29x29
-        placeAlignmentPattern(matrix, reserved, 20, 20)
+        // Mode indicator: 0100 (Byte mode)
+        putBits(4, 4)
+        // Character count indicator (8 bits for versions 1-9 in byte mode)
+        putBits(len, 8)
+        // Data bytes
+        for (b in bytes) {
+            putBits(b.toInt() and 0xFF, 8)
+        }
+        // Terminator (up to 4 zeroes)
+        val termZeros = minOf(4, totalDataBytes * 8 - bitBuffer.size)
+        putBits(0, termZeros)
+        // Pad to byte boundary
+        while (bitBuffer.size % 8 != 0) {
+            bitBuffer.add(0)
+        }
+        // Pad bytes (0xEC, 0x11 alternating)
+        val padBytes = intArrayOf(0xEC, 0x11)
+        var padIndex = 0
+        while (bitBuffer.size < totalDataBytes * 8) {
+            putBits(padBytes[padIndex % 2], 8)
+            padIndex++
+        }
 
-        // Timing patterns
-        for (i in 8 until SIZE - 8) {
-            val bit = (i % 2 == 0)
-            setReserved(matrix, reserved, 6, i, bit)
-            setReserved(matrix, reserved, i, 6, bit)
+        // Convert bitBuffer to IntArray data bytes
+        val dataBytes = IntArray(totalDataBytes)
+        for (i in 0 until totalDataBytes) {
+            var b = 0
+            for (j in 0 until 8) {
+                b = (b shl 1) or bitBuffer[i * 8 + j]
+            }
+            dataBytes[i] = b
+        }
+
+        // Error correction codewords
+        val ecCodewords = computeRs(dataBytes, ecBytes)
+        val allCodewords = dataBytes + ecCodewords
+
+        // 2. Finder patterns (7x7) at three corners
+        fun drawFinder(top: Int, left: Int) {
+            for (r in -1..7) {
+                for (c in -1..7) {
+                    val row = top + r
+                    val col = left + c
+                    if (row in 0 until size && col in 0 until size) {
+                        isReserved[row][col] = true
+                        val inSquare = (r in 0..6 && (c == 0 || c == 6)) || (c in 0..6 && (r == 0 || r == 6)) || (r in 2..4 && c in 2..4)
+                        matrix[row][col] = inSquare
+                    }
+                }
+            }
+        }
+        drawFinder(0, 0)
+        drawFinder(0, size - 7)
+        drawFinder(size - 7, 0)
+
+        // 3. Timing patterns
+        for (i in 8 until size - 8) {
+            if (!isReserved[6][i]) {
+                isReserved[6][i] = true
+                matrix[6][i] = (i % 2 == 0)
+            }
+            if (!isReserved[i][6]) {
+                isReserved[i][6] = true
+                matrix[i][6] = (i % 2 == 0)
+            }
+        }
+
+        // 4. Alignment pattern for Version >= 2
+        val alignPos = when (version) {
+            2 -> intArrayOf(6, 18)
+            4 -> intArrayOf(6, 26)
+            6 -> intArrayOf(6, 34)
+            else -> intArrayOf(6, 18)
+        }
+        for (r in alignPos) {
+            for (c in alignPos) {
+                if (!isReserved[r][c]) {
+                    for (dr in -2..2) {
+                        for (dc in -2..2) {
+                            val row = r + dr
+                            val col = c + dc
+                            isReserved[row][col] = true
+                            matrix[row][col] = (maxOf(Math.abs(dr), Math.abs(dc)) != 1)
+                        }
+                    }
+                }
+            }
         }
 
         // Dark module
-        setReserved(matrix, reserved, 8, SIZE - 8, true)
+        isReserved[4 * version + 9][8] = true
+        matrix[4 * version + 9][8] = true
 
-        // Genera flusso di bit pseudorandomico deterministico basato sul testo + hash
-        val bytes = text.toByteArray(Charsets.UTF_8)
-        val md = MessageDigest.getInstance("SHA-256")
-        val hash = md.digest(bytes)
+        // Reserve format info areas
+        for (i in 0..8) {
+            isReserved[8][i] = true
+            isReserved[i][8] = true
+        }
+        for (i in 0..7) {
+            isReserved[8][size - 1 - i] = true
+            isReserved[size - 1 - i][8] = true
+        }
 
-        // Combina i byte del testo con l'hash per riempire la matrice in modo denso
-        val bitBuffer = mutableListOf<Boolean>()
-        for (b in bytes) {
-            for (bit in 7 downTo 0) {
-                bitBuffer.add(((b.toInt() shr bit) and 1) == 1)
+        // 5. Fill Data & ECC into matrix (zigzag upward/downward)
+        val allBits = mutableListOf<Int>()
+        for (byte in allCodewords) {
+            for (i in 7 downTo 0) {
+                allBits.add((byte shr i) and 1)
             }
         }
-        for (h in hash) {
-            for (bit in 7 downTo 0) {
-                bitBuffer.add(((h.toInt() shr bit) and 1) == 1)
-            }
+        // Extra remainder bits
+        while (allBits.size < size * size) {
+            allBits.add(0)
         }
-        // Ripeti il buffer per coprire l'intera area dati
-        var bitIndex = 0
 
-        // Popola i moduli dati non riservati a zig-zag dal fondo a destra
-        for (c in SIZE - 1 downTo 1 step 2) {
-            val col = if (c <= 6) c - 1 else c
-            val goingUp = ((SIZE - 1 - col) / 2) % 2 == 0
-            val rowRange = if (goingUp) (SIZE - 1 downTo 0) else (0 until SIZE)
-
-            for (row in rowRange) {
-                for (offset in 0..1) {
-                    val targetCol = col - offset
-                    if (targetCol >= 0 && !reserved[row][targetCol]) {
-                        val bit = if (bitBuffer.isNotEmpty()) {
-                            val v = bitBuffer[bitIndex % bitBuffer.size]
-                            bitIndex++
-                            // Applica maschera standard (row + col) % 2 == 0
-                            val mask = (row + targetCol) % 2 == 0
-                            v xor mask
-                        } else {
-                            (row + targetCol) % 2 == 0
-                        }
-                        matrix[row][targetCol] = bit
+        var bitIdx = 0
+        var upward = true
+        var col = size - 1
+        while (col > 0) {
+            if (col == 6) col-- // Skip vertical timing column
+            val rows = if (upward) (size - 1 downTo 0) else (0 until size)
+            for (r in rows) {
+                for (c in intArrayOf(col, col - 1)) {
+                    if (!isReserved[r][c]) {
+                        val bit = if (bitIdx < allBits.size) allBits[bitIdx++] else 0
+                        // Mask pattern 0: (row + col) % 2 == 0
+                        val mask = (r + c) % 2 == 0
+                        matrix[r][c] = (bit xor (if (mask) 1 else 0)) == 1
                     }
                 }
             }
+            upward = !upward
+            col -= 2
+        }
+
+        // 6. Format info bits (ECC Level M = 00, Mask 0 = 000 -> 00000 xor 101010000010010)
+        // With BCH code (15, 5), format 00000 gives 0000000000, XORed with mask 101010000010010 = 101010000010010
+        val formatBits = intArrayOf(1, 0, 1, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0)
+        // Top-left
+        val tlCoords = arrayOf(
+            Pair(8, 0), Pair(8, 1), Pair(8, 2), Pair(8, 3), Pair(8, 4), Pair(8, 5),
+            Pair(8, 7), Pair(8, 8), Pair(7, 8), Pair(5, 8), Pair(4, 8), Pair(3, 8),
+            Pair(2, 8), Pair(1, 8), Pair(0, 8)
+        )
+        for (i in 0 until 15) {
+            val (r, c) = tlCoords[i]
+            matrix[r][c] = (formatBits[i] == 1)
+        }
+        // Bottom-left & Top-right
+        for (i in 0..6) {
+            matrix[size - 1 - i][8] = (formatBits[i] == 1)
+        }
+        for (i in 7..14) {
+            matrix[8][size - 15 + i] = (formatBits[i] == 1)
         }
 
         return matrix
-    }
-
-    private fun placeFinderPattern(matrix: Array<BooleanArray>, reserved: Array<BooleanArray>, r: Int, c: Int) {
-        for (row in 0 until 7) {
-            for (col in 0 until 7) {
-                val isBlack = row == 0 || row == 6 || col == 0 || col == 6 ||
-                        (row in 2..4 && col in 2..4)
-                setReserved(matrix, reserved, r + row, c + col, isBlack)
-            }
-        }
-    }
-
-    private fun placeAlignmentPattern(matrix: Array<BooleanArray>, reserved: Array<BooleanArray>, r: Int, c: Int) {
-        for (row in -2..2) {
-            for (col in -2..2) {
-                val isBlack = row == -2 || row == 2 || col == -2 || col == 2 || (row == 0 && col == 0)
-                setReserved(matrix, reserved, r + row, c + col, isBlack)
-            }
-        }
-    }
-
-    private fun setReserved(matrix: Array<BooleanArray>, reserved: Array<BooleanArray>, r: Int, c: Int, isBlack: Boolean) {
-        if (r in 0 until SIZE && c in 0 until SIZE) {
-            matrix[r][c] = isBlack
-            reserved[r][c] = true
-        }
-    }
-}
-
-@Composable
-fun QrCodeView(
-    data: String,
-    modifier: Modifier = Modifier,
-    darkColor: Color = Color.Black,
-    lightColor: Color = Color.White
-) {
-    val matrix = remember(data) { QrMatrixGenerator.generateMatrix(data) }
-    val size = matrix.size
-
-    Box(
-        modifier = modifier
-            .aspectRatio(1f)
-            .background(lightColor, RoundedCornerShape(12.dp))
-            .padding(12.dp)
-    ) {
-        Canvas(modifier = Modifier.fillMaxSize()) {
-            val moduleWidth = this.size.width / size
-            val moduleHeight = this.size.height / size
-
-            for (r in 0 until size) {
-                for (c in 0 until size) {
-                    if (matrix[r][c]) {
-                        drawRect(
-                            color = darkColor,
-                            topLeft = Offset(c * moduleWidth, r * moduleHeight),
-                            size = Size(moduleWidth + 0.5f, moduleHeight + 0.5f)
-                        )
-                    }
-                }
-            }
-        }
     }
 }

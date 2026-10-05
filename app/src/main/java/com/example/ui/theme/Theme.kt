@@ -13,44 +13,52 @@ import androidx.compose.ui.platform.LocalContext
 
 private val DarkColorScheme = darkColorScheme(
     primary = IliadRed,
-    onPrimary = PureWhite,
-    primaryContainer = Color(0xFF5C000B),
+    onPrimary = Color.White,
+    primaryContainer = Color(0xFF4C0006),
     onPrimaryContainer = Color(0xFFFFDAD6),
-    secondary = Color(0xFFE57373),
-    onSecondary = Color(0xFF370001),
-    secondaryContainer = Color(0xFF381E20),
-    onSecondaryContainer = Color(0xFFFFDAD6),
+    secondary = Color(0xFF90CAF9),
+    onSecondary = Color(0xFF003258),
+    secondaryContainer = Color(0xFF0D47A1),
+    onSecondaryContainer = Color(0xFFD1E4FF),
+    tertiary = EmeraldGreen,
+    onTertiary = Color.White,
+    tertiaryContainer = Color(0xFF1B5E20),
+    onTertiaryContainer = Color(0xFFC8E6C9),
     background = DarkBackground,
-    onBackground = DarkOnBackground,
+    onBackground = DarkOnSurface,
     surface = DarkSurface,
     onSurface = DarkOnSurface,
     surfaceVariant = DarkSurfaceVariant,
     onSurfaceVariant = DarkOnSurfaceVariant,
     outline = DarkOutline,
-    outlineVariant = Color(0xFF333538),
+    outlineVariant = Color(0xFF2E2E36),
     error = Color(0xFFFFB4AB),
     onError = Color(0xFF690005)
 )
 
 private val LightColorScheme = lightColorScheme(
-    primary = IliadRed,
-    onPrimary = PureWhite,
-    primaryContainer = ContainerPink,
-    onPrimaryContainer = OnContainerPink,
-    secondary = Color(0xFF9C4146),
-    onSecondary = PureWhite,
-    secondaryContainer = Color(0xFFFFDAD9),
-    onSecondaryContainer = Color(0xFF3B080D),
+    primary = IliadRedDark,
+    onPrimary = Color.White,
+    primaryContainer = IliadRedContainer,
+    onPrimaryContainer = OnIliadRedContainer,
+    secondary = IliadBlue,
+    onSecondary = Color.White,
+    secondaryContainer = IliadBlueLight,
+    onSecondaryContainer = Color(0xFF0D47A1),
+    tertiary = EmeraldGreen,
+    onTertiary = Color.White,
+    tertiaryContainer = EmeraldGreenLight,
+    onTertiaryContainer = Color(0xFF1B5E20),
     background = LightBackground,
-    onBackground = LightOnBackground,
+    onBackground = LightOnSurface,
     surface = LightSurface,
     onSurface = LightOnSurface,
     surfaceVariant = LightSurfaceVariant,
     onSurfaceVariant = LightOnSurfaceVariant,
     outline = LightOutline,
-    outlineVariant = Color(0xFFE2E4E8),
+    outlineVariant = Color(0xFFEBECEF),
     error = Color(0xFFBA1A1A),
-    onError = PureWhite
+    onError = Color.White
 )
 
 @Composable
@@ -68,5 +76,8 @@ fun MyApplicationTheme(
         else -> LightColorScheme
     }
 
-    MaterialTheme(colorScheme = colorScheme, content = content)
+    MaterialTheme(
+        colorScheme = colorScheme,
+        content = content
+    )
 }
