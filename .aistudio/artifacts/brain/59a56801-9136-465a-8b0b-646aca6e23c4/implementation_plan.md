@@ -1,129 +1,118 @@
-# Integrazione Modulo CrealityAuto: OTA GitHub & Versioning APK
+# Refactoring Interfaccia Utente & Download/Torrent Manager - Italian Freebox Manager
 
-Questo piano adotta integralmente l'architettura standard definita nel modulo template di **CrealityAuto**, implementando il versionamento incrementale basato su GitHub Actions, la pubblicazione automatica dell'APK sfuso su GitHub Releases e il modulo nativo di aggiornamento in-app (**OTA AppUpdateManager**) con changelog dei commit.
-
----
-
-## User Review & Critical Decisions
-
-> [!IMPORTANT]
-> **Specifiche esatte mutuate da CrealityAuto:**
-> 1. **Calcolo Versione Dinamico**: In `app/build.gradle.kts`, `versionCode` e `versionName` sono agganciati a `GITHUB_RUN_NUMBER` (es. `1.0.$runNumber` e `100 + runNumber`) con fallback locali se non in CI.
-> 2. **Workflow GitHub Actions (`.github/workflows/build-apk.yml`)**:
->    - Compilazione automatica su push `main`/`master` e `workflow_dispatch`.
->    - Ripristino di `debug.keystore.base64` in `$HOME/.android/debug.keystore` con `tr -d '\r\n '` per mantenere firme crittografiche coerenti ad ogni build.
->    - Pubblicazione dell'APK sfuso `ItalianFreeboxManager.apk` sulla release `latest` aggiornando dinamicamente il tag git `latest` e le note con `gh release`.
-> 3. **AppUpdateManager.kt**:
->    - Controllo release GitHub (pubbliche e private tramite token facoltativo).
->    - Changelog interattivo dei commit recenti con hash monospace e date formattate.
->    - Download in streaming con percentuale di avanzamento (`%`) e intent di installazione tramite `FileProvider`.
->    - Opzione di reinstallazione / download forzato dell'ultimo APK compilato.
-> 4. **Configurazione Risorse e Manifest**:
->    - Authority FileProvider `${applicationId}.fileprovider` con `file_paths.xml` completo (files, cache, external).
->    - Permessi `REQUEST_INSTALL_PACKAGES` e `INTERNET`.
->    - Stringa di default in `strings.xml`: `<string name="default_github_repo">alipus85/ItalianFreeboxManager</string>`.
+Riprogettazione completa dell'interfaccia utente dell'app Android in chiave **Material Design 3**, con accenti cromatici **Rosso Iliad**, navigazione a 4 schede inferiori e **modulo avanzato per la Gestione Torrent e Download** integrato nativamente.
 
 ---
 
-## 1. Overview & Core Concept
-
-- **Cosa fa**: Dà all'applicazione Italian Freebox Manager la piena autonomia di aggiornamento: ogni push su GitHub genera automaticamente l'APK nella release `latest`, e l'app sul telefono rileva l'aggiornamento, mostra il changelog dei commit e scarica/installa l'APK con un tocco.
-- **Valore aggiunto**: Replica esattamente l'esperienza fluida e affidabile già collaudata in CrealityAuto.
-
----
-
-## 2. User Experience & Visual Design
-
-### Scheda Aggiornamenti OTA in `SettingsScreen`
-
-- **Header Versione Attuale**:
-  - `ItalianFreebox Manager v1.0.X (Build Y)` con badge di stato colorato.
-- **Configurazione Repository**:
-  - Mostra il repository associato con valore predefinito `alipus85/ItalianFreeboxManager`.
-  - Possibilità di inserire facoltativamente un GitHub Personal Access Token (per repository privati o rate limit GitHub).
-- **Pulsante di Verifica**:
-  - Pulsante M3 `"Verifica Aggiornamenti OTA"` con animazione di caricamento.
-- **Card Stato / Dialog di Aggiornamento**:
-  - Mostra la versione remota disponibile rispetto a quella installata.
-  - Se è presente un aggiornamento (o su richiesta di reinstallazione forzata):
-    - **Lista Changelog Commit**: Elenco degli ultimi commit con hash `abc1234` in stile monospace, messaggio di commit e data.
-    - **Barra di Progresso Download**: Barra di caricamento lineare con percentuale (%) e byte scaricati in tempo reale.
-    - **Pulsante Azione**: `"Scarica e Installa"` che al termine invoca automaticamente l'installer Android.
+> [!IMPORTANT] Scelte di Design & Funzionalità Torrent Confermate
+> - **Stile Visivo & Tema**: Tema dinamico Material 3 con tonalità scure eleganti ed accenti Rosso Iliad (`#E53935` / `#D32F2F`).
+> - **Struttura Navigazione**: Bottom Navigation Bar a 4 schede fisse (`Home`, `Dispositivi`, `Downloads & Storage`, `Altro`).
+> - **Gestione Torrent & Download Manager (In Primo Piano)**:
+>   1. Aggiunta rapida di **Magnet Link**, URL HTTP/FTP e caricamento file **`.torrent`**.
+>   2. Monitoraggio in tempo reale: velocità di Download/Upload, avanzamento in %, tempo stimato (ETA), numero di Peer/Seeders/Leechers e Ratio.
+>   3. Controlli sui task: Avvia, Metti in pausa, Elimina, Priorità e limiti di banda per singolo task.
+>   4. Filtri per stato: *In corso*, *Completati*, *In pausa*, *Errori*.
 
 ---
 
-## 3. Key Product Decisions & Trade-Offs
+## Anteprime Grafiche dell'Interfaccia Utente
 
-- **Decisione 1: Tag mobile `latest` per la release diretta dell'APK**
-  - *Scelta da CrealityAuto*: La release GitHub usa il tag fisso `latest` che viene fatto avanzare su ogni build via `git tag -f latest HEAD`.
-  - *Perché*: L'app può interrogare sempre l'endpoint fisso `/releases/latest` senza dover fare scraping di versioni complesse, e scaricare direttamente l'asset nominato `ItalianFreeboxManager.apk`.
+### 1. Dashboard Principale (Home)
+![Anteprima Dashboard](file:///app/src/main/res/drawable/app_dashboard_mockup_1791124994443.jpg)
 
-- **Decisione 2: Conservazione della firma tramite `debug.keystore.base64`**
-  - *Scelta da CrealityAuto*: Mantenimento del file `debug.keystore.base64` nel repository e decodifica nella pipeline CI.
-  - *Perché*: Android rifiuta l'aggiornamento di un'app (errore di installazione pacchetto) se la chiave crittografica con cui è stato firmato l'APK differisce da quella già installata. Usando la stessa chiave di debug, tutti gli aggiornamenti OTA si installano sopra la versione precedente senza richiedere la disinstallazione.
-
-- **Decisione 3: `FileProvider` con authority `${applicationId}.fileprovider`**
-  - *Scelta da CrealityAuto*: Unificazione su `${applicationId}.fileprovider` con percorsi comprensivi di cache interna ed esterna.
+### 2. Gestione Torrent e Download Manager
+![Anteprima Gestore Torrent e Download](file:///app/src/main/res/drawable/download_manager_mockup_1791125387175.jpg)
 
 ---
 
-## 4. Technical Architecture & Data Strategy
+## 1. Panoramica e Concetto del Gestore Torrent
 
-### Diagramma del Flusso OTA
+L'Iliadbox integra un potente **Download Manager nativo** (bittorrent, HTTP, FTP, NZB). La nuova interfaccia trasforma l'app in un **client torrent remoto completo**:
+
+### Funzionalità Chiave della Sezione Downloads
+1. **Pulsante Fluttuante (FAB) "+ Nuovo Download"**:
+   - Inserimento diretto di **Magnet Link** (con incollamento automatico dalla clipboard).
+   - Download da URL (HTTP / HTTPS / FTP).
+   - Selezionatore di file per caricare file `.torrent` dalla memoria dello smartphone.
+2. **Schede Informative Dettagliate per ogni Torrent**:
+   - Barra di avanzamento animata e percentuale.
+   - Indicatori in tempo reale di velocità di Download ($\downarrow$ MB/s) ed Upload ($\uparrow$ KB/s).
+   - Conteggio Seeders/Leechers, ETA (Tempo rimanente) e Ratio di condivisione.
+3. **Azioni Rapide su ciascun Task**:
+   - Play / Pausa singoli o cumulativi (*Pausa tutti / Avvia tutti*).
+   - Cestino con opzione "Mantieni i file scaricati" oppure "Elimina anche i file".
+   - Apertura rapida della cartella di destinazione nell'Esplora File integrato.
+
+---
+
+## 2. Architettura & Struttura Navigazione (4 Schede)
 
 ```
-┌────────────────────────────────────────────────────────┐
-│             GitHub Actions Workflow                    │
-│      .github/workflows/build-apk.yml                   │
-│  - Ripristina debug.keystore da debug.keystore.base64  │
-│  - gradle :app:assembleDebug                           │
-│  - Crea/Aggiorna release 'latest' con                  │
-│    ItalianFreeboxManager.apk                           │
-└───────────────────────────┬────────────────────────────┘
-                            │ Pubblica APK su GitHub Releases
-                            ▼
-┌────────────────────────────────────────────────────────┐
-│                   GitHub API                           │
-│   - GET /repos/{repo}/releases/latest                  │
-│   - GET /repos/{repo}/commits                          │
-└───────────────────────────▲────────────────────────────┘
-                            │ Interroga API / Scarica APK
-┌───────────────────────────┴────────────────────────────┐
-│         com.example.util.AppUpdateManager              │
-│  - checkUpdate(repo, token): UpdateResult              │
-│  - fetchRecentCommits(repo, token): List<CommitInfo>   │
-│  - downloadAndInstallApk(context, apkUrl, onProgress)   │
-└───────────────────────────▲────────────────────────────┘
-                            │ Notifica stato UI
-┌───────────────────────────┴────────────────────────────┐
-│          FreeboxViewModel & SettingsScreen             │
-│  - Mostra stato controllo, changelog commit            │
-│  - Barra di progresso download interattiva             │
-│  - Lancio Intent ACTION_VIEW con URI FileProvider      │
-└────────────────────────────────────────────────────────┘
+┌───────────────────────────────────────────────────────────┐
+│                    TOP BAR / STATUS HEADER                │
+│  [Iliadbox Status]   [Model Name]   [Refresh / Connect]   │
+├───────────────────────────────────────────────────────────┤
+│                                                           │
+│   TAB 1: HOME (Dashboard & Telemetria)                    │
+│   - Meter Velocità Banda (DL/UL) + QR Code Wi-Fi          │
+│   - Azioni Rapide (Riavvio, Wi-Fi, Ospiti)                │
+│   - Telemetria Sistema (Temp CPU, Storage, Ventola)       │
+│                                                           │
+│   TAB 2: DISPOSITIVI (Network Hosts & LAN)                │
+│   - Lista Hosts con filtri 2.4/5GHz ed Ethernet           │
+│                                                           │
+│   TAB 3: DOWNLOADS & STORAGE                              │
+│   ┌─────────────────────────┬─────────────────────────┐   │
+│   │   [★ Torrent & Download]│   [Esplora File Box]    │   │
+│   └─────────────────────────┴─────────────────────────┘   │
+│   - Stats cumulative: Velocità Totale DL/UL               │
+│   - Filtri: Tutti | In Corso | Completati | In Pausa      │
+│   - Lista Torrent reattiva con bar di avanzamento         │
+│   - [ + ] Floating Action Button (Nuovo Magnet/Torrent)   │
+│                                                           │
+│   TAB 4: ALTRO (TV, Chiamate, Impostazioni)               │
+│   - Guida TV, Registro Chiamate, Permessi e Config        │
+│                                                           │
+├───────────────────────────────────────────────────────────┤
+│  [ Home ]    [ Dispositivi ]   [ Downloads ]    [ Altro ] │
+│                BOTTOM NAVIGATION BAR (M3)                 │
+└───────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 5. File da Modificare / Creare
+## 3. Modelli Dati & Componenti Torrent
 
-1. **`app/build.gradle.kts`**:
-   - Aggiunta del blocco di calcolo dinamico `GITHUB_RUN_NUMBER` e `dynamicVersionCode`.
-   - Verifica dipendenza `okhttp` (già presente, verifichiamo la compatibilità).
-2. **`.github/workflows/build-apk.yml`**:
-   - Creazione del workflow per compilazione automatica, ripristino keystore e pubblicazione su GitHub Releases (`latest`).
-   - Rinomina/sostituzione del precedente `android-ci.yml` per evitare workflow duplicati.
-3. **`app/src/main/res/values/strings.xml`**:
-   - Aggiunta di `<string name="default_github_repo">alipus85/ItalianFreeboxManager</string>`.
-4. **`app/src/main/res/xml/file_paths.xml`**:
-   - Aggiornamento con tutti i percorsi (internal_files, internal_cache, external_files, external_cache) come da template.
-5. **`app/src/main/AndroidManifest.xml`**:
-   - Aggiunta del permesso `<uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />`.
-   - Aggiornamento authority FileProvider su `${applicationId}.fileprovider`.
-6. **`app/src/main/java/com/example/util/AppUpdateManager.kt`**:
-   - Implementazione completa del manager OTA con supporto a GitHub Releases, lista commit recente con hash e date, download in background e installazione sicura tramite FileProvider.
-7. **`app/src/main/java/com/example/ui/FreeboxViewModel.kt` & `MainActivity.kt`**:
-   - Collegamento dello stato degli aggiornamenti nel ViewModel.
-   - Creazione della sezione interattiva OTA in `SettingsScreen` con controlli per verificare, visualizzare il changelog commit, e aggiornare/reinstallare l'APK.
-8. **Verifica Finale**:
-   - Esecuzione di `compile_applet` per confermare che l'intero progetto compili con successo.
+### Componenti Modulo Torrent
+1. **`DownloadManagerScreen.kt`**:
+   - `DownloadHeaderCard`: Riepilogo banda usata dai download in tempo reale.
+   - `DownloadItemCard`: Card per ciascun file/torrent con progress bar, velocità e comandi.
+   - `AddDownloadDialog.kt`: Modale per incollare Magnet Link, URL o caricare `.torrent`.
+
+2. **Dati API Freebox OS coinvolti**:
+   - `GET /api/v8/downloads/`: Stato di tutti i task attivi e completati.
+   - `POST /api/v8/downloads/add`: Aggiunta nuovo download da URL/Magnet o file base64.
+   - `PUT /api/v8/downloads/{id}`: Aggiornamento stato (pausa, ripresa, priorità).
+   - `DELETE /api/v8/downloads/{id}`: Eliminazione task/file.
+
+---
+
+## 4. Piano di Esecuzione Passaggio-Passo
+
+1. **Passo 1: Aggiornamento Tema & Colori (`Theme.kt`)**
+   - Definire i token M3 con accento Rosso Iliad per Light e Dark mode.
+
+2. **Passo 2: Struttura Base Navigazione a 4 Schede (`MainActivity.kt`)**
+   - Implementare `Scaffold` M3 con `NavigationBar` inferiore.
+
+3. **Passo 3: Creazione Dashboard Home (`HomeDashboardScreen.kt`)**
+   - Realizzare i widget banda, telemetria, azioni rapide e dialog QR Code Wi-Fi.
+
+4. **Passo 4: Implementazione Sezione Torrent & Downloads (`DownloadsScreen.kt`)**
+   - Realizzare la schermata torrent completa di filtri, card interattive e FAB per aggiungere Magnet/URL/Torrent.
+
+5. **Passo 5: Integrazione Esplora File e Sezione Altro**
+   - Completare le schermate per la gestione file della box, registro chiamate, TV e permessi router.
+
+6. **Passo 6: Verifica & Compilazione**
+   - Compilare con `compile_applet` e verificare l'assenza di warning o errori.

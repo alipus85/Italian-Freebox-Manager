@@ -14,17 +14,22 @@ import androidx.compose.ui.platform.LocalContext
 private val DarkColorScheme = darkColorScheme(
     primary = IliadRed,
     onPrimary = PureWhite,
-    primaryContainer = ContainerPink,
-    onPrimaryContainer = OnContainerPink,
-    secondary = TextSecondary,
-    onSecondary = PureWhite,
-    background = Color(0xFF121212),
-    onBackground = Color(0xFFE3E2E6),
-    surface = Color(0xFF1E1E1E),
-    onSurface = Color(0xFFE3E2E6),
-    surfaceVariant = Color(0xFF2E2E2E),
-    onSurfaceVariant = Color(0xFFC4C6D0),
-    outline = Color(0xFF43474E)
+    primaryContainer = Color(0xFF5C000B),
+    onPrimaryContainer = Color(0xFFFFDAD6),
+    secondary = Color(0xFFE57373),
+    onSecondary = Color(0xFF370001),
+    secondaryContainer = Color(0xFF381E20),
+    onSecondaryContainer = Color(0xFFFFDAD6),
+    background = DarkBackground,
+    onBackground = DarkOnBackground,
+    surface = DarkSurface,
+    onSurface = DarkOnSurface,
+    surfaceVariant = DarkSurfaceVariant,
+    onSurfaceVariant = DarkOnSurfaceVariant,
+    outline = DarkOutline,
+    outlineVariant = Color(0xFF333538),
+    error = Color(0xFFFFB4AB),
+    onError = Color(0xFF690005)
 )
 
 private val LightColorScheme = lightColorScheme(
@@ -32,34 +37,36 @@ private val LightColorScheme = lightColorScheme(
     onPrimary = PureWhite,
     primaryContainer = ContainerPink,
     onPrimaryContainer = OnContainerPink,
-    secondary = TextSecondary,
+    secondary = Color(0xFF9C4146),
     onSecondary = PureWhite,
-    background = NaturalBackground,
-    onBackground = TextPrimary,
-    surface = PureWhite,
-    onSurface = TextPrimary,
-    surfaceVariant = SurfaceGray,
-    onSurfaceVariant = TextSecondary,
-    outline = BorderColor
+    secondaryContainer = Color(0xFFFFDAD9),
+    onSecondaryContainer = Color(0xFF3B080D),
+    background = LightBackground,
+    onBackground = LightOnBackground,
+    surface = LightSurface,
+    onSurface = LightOnSurface,
+    surfaceVariant = LightSurfaceVariant,
+    onSurfaceVariant = LightOnSurfaceVariant,
+    outline = LightOutline,
+    outlineVariant = Color(0xFFE2E4E8),
+    error = Color(0xFFBA1A1A),
+    onError = PureWhite
 )
 
 @Composable
 fun MyApplicationTheme(
-  darkTheme: Boolean = isSystemInDarkTheme(),
-  // Disable dynamic color by default to maintain branding
-  dynamicColor: Boolean = false,
-  content: @Composable () -> Unit,
+    darkTheme: Boolean = isSystemInDarkTheme(),
+    dynamicColor: Boolean = false,
+    content: @Composable () -> Unit,
 ) {
-  val colorScheme =
-    when {
-      dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-        val context = LocalContext.current
-        if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-      }
-
-      darkTheme -> DarkColorScheme
-      else -> LightColorScheme
+    val colorScheme = when {
+        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
+            val context = LocalContext.current
+            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+        }
+        darkTheme -> DarkColorScheme
+        else -> LightColorScheme
     }
 
-  MaterialTheme(colorScheme = colorScheme, content = content)
+    MaterialTheme(colorScheme = colorScheme, content = content)
 }

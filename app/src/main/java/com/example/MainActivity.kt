@@ -31,6 +31,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.OutlinedTextField
 import com.example.util.DownloadState
+import com.example.ui.WifiQrCodeDialog
 
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -575,14 +576,23 @@ fun RenderScreenContent(
     when (screen) {
         AppScreen.HOME -> HomeScreen(
             uiState = uiState,
-            viewModel = viewModel
+            viewModel = viewModel,
+            onRebootRequest = onRebootRequest
         )
         AppScreen.DEVICES -> DevicesScreen(
             uiState = uiState,
             viewModel = viewModel
         )
-        AppScreen.FILES -> FilesScreen(uiState, viewModel)
-        AppScreen.DOWNLOADS -> DownloadsScreen(uiState, viewModel)
+        AppScreen.FILES -> StorageScreen(
+            uiState = uiState,
+            viewModel = viewModel,
+            initialTab = 1
+        )
+        AppScreen.DOWNLOADS -> StorageScreen(
+            uiState = uiState,
+            viewModel = viewModel,
+            initialTab = 0
+        )
         AppScreen.SETTINGS -> SettingsScreen(
             uiState = uiState,
             viewModel = viewModel,
@@ -592,19 +602,30 @@ fun RenderScreenContent(
 }
 
 // ==========================================
-// SCHERMATA 1: SCHERMATA HOME
+// SCHERMATA 1: SCHERMATA HOME (M3 DASHBOARD)
 // ==========================================
 @Composable
 fun HomeScreen(
     uiState: FreeboxUiState,
-    viewModel: FreeboxViewModel
+    viewModel: FreeboxViewModel,
+    onRebootRequest: () -> Unit = { viewModel.rebootBox() }
 ) {
     var selectedDevice by remember { mutableStateOf<LanHost?>(null) }
+    var showWifiQrDialog by remember { mutableStateOf(false) }
+
+    if (showWifiQrDialog) {
+        WifiQrCodeDialog(
+            ssid = uiState.discoveredDeviceName.ifEmpty { "Iliadbox-WiFi" },
+            activeBand = uiState.wifiActiveBand,
+            isEnabled = uiState.isWifiEnabled,
+            onDismiss = { showWifiQrDialog = false }
+        )
+    }
 
     if (selectedDevice != null) {
         AlertDialog(
             onDismissRequest = { selectedDevice = null },
-            title = { Text(selectedDevice?.primaryName ?: "Dispositivo") },
+            title = { Text(selectedDevice?.primaryName ?: "Dispositivo", fontWeight = FontWeight.Bold) },
             text = { 
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("ID: ${selectedDevice?.id}")
@@ -615,7 +636,8 @@ fun HomeScreen(
                     Text("Attivo: ${if (selectedDevice?.active == true) "Sì" else "No"}")
                 }
             },
-            confirmButton = { TextButton(onClick = { selectedDevice = null }) { Text("Chiudi") } }
+            confirmButton = { TextButton(onClick = { selectedDevice = null }) { Text("Chiudi") } },
+            shape = RoundedCornerShape(20.dp)
         )
     }
 
@@ -626,7 +648,7 @@ fun HomeScreen(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // BANNER DEMO
+        // BANNER DEMO / SIMULATION
         if (uiState.isSimulated) {
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -646,7 +668,7 @@ fun HomeScreen(
                             color = MaterialTheme.colorScheme.onPrimaryContainer
                         )
                         Text(
-                            text = "Per configurare un box fisico, vai alla scheda Impostazioni (⚙️) e registra la tua ItalianFreebox.",
+                            text = "Per collegare una Iliadbox reale, apri la scheda Altro (⚙️) ed esegui la registrazione.",
                             fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
                         )
@@ -655,17 +677,17 @@ fun HomeScreen(
             }
         }
 
-        // SCHEDA DI CONNETTIVITÀ
+        // HERO CARD: STATO CONNESSIONE E VELOCITÀ DI BANDA
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .shadow(elevation = 2.dp, shape = RoundedCornerShape(32.dp)),
+                .shadow(elevation = 2.dp, shape = RoundedCornerShape(28.dp)),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
-            shape = RoundedCornerShape(32.dp)
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+            shape = RoundedCornerShape(28.dp)
         ) {
-            Column(modifier = Modifier.padding(24.dp)) {
-                // Intestazione dello Stato
+            Column(modifier = Modifier.padding(20.dp)) {
+                // Header: Stato e Modello Box
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -674,7 +696,7 @@ fun HomeScreen(
                     Column {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
-                                text = "Stato Corrente",
+                                text = "Stato Iliadbox",
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -723,42 +745,50 @@ fun HomeScreen(
                         }
                     }
 
-                    // Badge Tecnologico
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(100.dp))
-                            .background(MaterialTheme.colorScheme.primaryContainer)
-                            .padding(horizontal = 14.dp, vertical = 6.dp)
+                    // Badge Tecnologia Rete (es. Fiber 5G / EPON)
+                    Surface(
+                        shape = RoundedCornerShape(100.dp),
+                        color = MaterialTheme.colorScheme.primaryContainer
                     ) {
                         Text(
                             text = uiState.mediaType,
-                            fontSize = 10.sp,
+                            fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
                         )
                     }
                 }
 
-                Spacer(modifier = Modifier.height(20.dp))
+                Spacer(modifier = Modifier.height(18.dp))
 
-                // Griglia delle Velocità
+                // Griglia Live Indicatori Velocità (Download / Upload)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    // Scaricamento
+                    // Scheda Download
                     Card(
                         modifier = Modifier.weight(1f),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                        shape = RoundedCornerShape(20.dp)
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)),
+                        shape = RoundedCornerShape(20.dp),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
                     ) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            Text(
-                                text = "DOWNLOAD",
-                                fontSize = 9.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                        Column(modifier = Modifier.padding(14.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "DOWNLOAD",
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    letterSpacing = 0.5.sp
+                                )
+                                Text("⬇️", fontSize = 13.sp)
+                            }
                             Spacer(modifier = Modifier.height(4.dp))
                             Row(verticalAlignment = Alignment.Bottom) {
                                 Text(
@@ -770,124 +800,362 @@ fun HomeScreen(
                                 Text(
                                     text = " Mbps",
                                     fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     modifier = Modifier.padding(bottom = 3.dp)
                                 )
                             }
+                            Spacer(modifier = Modifier.height(6.dp))
+                            LinearProgressIndicator(
+                                progress = { (uiState.downloadSpeedMbps / 1000f).coerceIn(0.05f, 1f) },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(4.dp)
+                                    .clip(RoundedCornerShape(2.dp)),
+                                color = MaterialTheme.colorScheme.primary,
+                                trackColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                            )
                         }
                     }
 
-                    // Caricamento
+                    // Scheda Upload
                     Card(
                         modifier = Modifier.weight(1f),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                        shape = RoundedCornerShape(20.dp)
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)),
+                        shape = RoundedCornerShape(20.dp),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
                     ) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            Text(
-                                text = "UPLOAD",
-                                fontSize = 9.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                        Column(modifier = Modifier.padding(14.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "UPLOAD",
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    letterSpacing = 0.5.sp
+                                )
+                                Text("⬆️", fontSize = 13.sp)
+                            }
                             Spacer(modifier = Modifier.height(4.dp))
                             Row(verticalAlignment = Alignment.Bottom) {
                                 Text(
                                     text = "%.0f".format(uiState.uploadSpeedMbps),
                                     fontSize = 26.sp,
                                     fontWeight = FontWeight.Black,
-                                    color = MaterialTheme.colorScheme.onSurface
+                                    color = MaterialTheme.colorScheme.secondary
                                 )
                                 Text(
                                     text = " Mbps",
                                     fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     modifier = Modifier.padding(bottom = 3.dp)
                                 )
                             }
+                            Spacer(modifier = Modifier.height(6.dp))
+                            LinearProgressIndicator(
+                                progress = { (uiState.uploadSpeedMbps / 500f).coerceIn(0.05f, 1f) },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(4.dp)
+                                    .clip(RoundedCornerShape(2.dp)),
+                                color = MaterialTheme.colorScheme.secondary,
+                                trackColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                            )
                         }
                     }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // Pulsante Condivisione Wi-Fi con QR Code
+                Button(
+                    onClick = { showWifiQrDialog = true },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                    ),
+                    shape = RoundedCornerShape(14.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Share,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Condividi Wi-Fi con QR Code",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold
+                    )
                 }
             }
         }
 
-        // AZIONI PRINCIPALI (MANDATORY)
+        // SEZIONE AZIONI RAPIDE
         Text(
-            text = "AZIONI PRINCIPALI",
+            text = "AZIONI RAPIDE",
             fontSize = 11.sp,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             letterSpacing = 1.sp,
-            modifier = Modifier.padding(start = 4.dp, top = 8.dp)
+            modifier = Modifier.padding(start = 4.dp, top = 4.dp)
         )
 
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            // Gestione File Card
+            // Riavvio Box
             Card(
                 modifier = Modifier
                     .weight(1f)
-                    .height(110.dp)
-                    .clickable { viewModel.setScreen(AppScreen.FILES) },
-                shape = RoundedCornerShape(24.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f))
+                    .clickable { onRebootRequest() },
+                shape = RoundedCornerShape(18.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
             ) {
                 Column(
-                    modifier = Modifier.fillMaxSize().padding(16.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
+                    modifier = Modifier.padding(12.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Text("📁", fontSize = 32.sp)
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Text("🔄", fontSize = 24.sp)
+                    Spacer(modifier = Modifier.height(6.dp))
                     Text(
-                        text = "Gestione File",
-                        fontSize = 13.sp,
+                        text = "Riavvia Box",
+                        fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                        color = MaterialTheme.colorScheme.onSurface,
+                        textAlign = TextAlign.Center,
+                        maxLines = 1
                     )
                 }
             }
 
-            // Download Manager Card
+            // Wi-Fi On/Off Toggle
             Card(
                 modifier = Modifier
                     .weight(1f)
-                    .height(110.dp)
-                    .clickable { viewModel.setScreen(AppScreen.DOWNLOADS) },
-                shape = RoundedCornerShape(24.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.secondary.copy(alpha = 0.3f))
+                    .clickable { viewModel.toggleWifi(!uiState.isWifiEnabled) },
+                shape = RoundedCornerShape(18.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = if (uiState.isWifiEnabled) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.4f)
+                ),
+                border = BorderStroke(1.dp, if (uiState.isWifiEnabled) MaterialTheme.colorScheme.outlineVariant else MaterialTheme.colorScheme.error)
             ) {
                 Column(
-                    modifier = Modifier.fillMaxSize().padding(16.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
+                    modifier = Modifier.padding(12.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Text("📥", fontSize = 32.sp)
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(if (uiState.isWifiEnabled) "📶" else "📵", fontSize = 24.sp)
+                    Spacer(modifier = Modifier.height(6.dp))
                     Text(
-                        text = "Download",
-                        fontSize = 13.sp,
+                        text = if (uiState.isWifiEnabled) "Wi-Fi: ON" else "Wi-Fi: OFF",
+                        fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSecondaryContainer
+                        color = if (uiState.isWifiEnabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.error,
+                        textAlign = TextAlign.Center,
+                        maxLines = 1
+                    )
+                }
+            }
+
+            // Rete Ospiti / QR
+            Card(
+                modifier = Modifier
+                    .weight(1f)
+                    .clickable { showWifiQrDialog = true },
+                shape = RoundedCornerShape(18.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+            ) {
+                Column(
+                    modifier = Modifier.padding(12.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text("👥", fontSize = 24.sp)
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = "Rete Ospiti",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        textAlign = TextAlign.Center,
+                        maxLines = 1
+                    )
+                }
+            }
+
+            // Aggiorna Telemetria
+            Card(
+                modifier = Modifier
+                    .weight(1f)
+                    .clickable { viewModel.refreshAll() },
+                shape = RoundedCornerShape(18.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+            ) {
+                Column(
+                    modifier = Modifier.padding(12.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text("🔄", fontSize = 24.sp)
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = "Aggiorna",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        textAlign = TextAlign.Center,
+                        maxLines = 1
                     )
                 }
             }
         }
 
-        // ANTEPRIMA DEI DISPOSITIVI CONNESSI
+        // TELEMETRIA SISTEMA E HARDWARE
+        Text(
+            text = "TELEMETRIA ILIADBOX",
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            letterSpacing = 1.sp,
+            modifier = Modifier.padding(start = 4.dp, top = 4.dp)
+        )
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            // CPU & Temp
+            Card(
+                modifier = Modifier.weight(1f),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                shape = RoundedCornerShape(18.dp)
+            ) {
+                Column(modifier = Modifier.padding(12.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("CPU", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("🌡️", fontSize = 12.sp)
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = uiState.systemCpuTemp,
+                        fontWeight = FontWeight.Black,
+                        fontSize = 12.sp,
+                        color = if (uiState.systemCpuTemp.contains("Alta")) MaterialTheme.colorScheme.error else Color(0xFF2E7D32),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = uiState.systemFanSpeed,
+                        fontSize = 10.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            // Uptime Sistema
+            Card(
+                modifier = Modifier.weight(1f),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                shape = RoundedCornerShape(18.dp)
+            ) {
+                Column(modifier = Modifier.padding(12.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("UPTIME", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("⏱️", fontSize = 12.sp)
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = uiState.systemUptime,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = "FW: v${uiState.systemFirmwareVersion}",
+                        fontSize = 10.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            // Storage Partizione
+            val partition = uiState.partitions.firstOrNull()
+            val totalGB = (partition?.totalBytes ?: 500_000_000_000L) / 1_000_000_000f
+            val usedGB = (partition?.usedBytes ?: 140_000_000_000L) / 1_000_000_000f
+            val percentUsed = if (totalGB > 0) usedGB / totalGB else 0.3f
+
+            Card(
+                modifier = Modifier
+                    .weight(1f)
+                    .clickable { viewModel.setScreen(AppScreen.DOWNLOADS) },
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                shape = RoundedCornerShape(18.dp)
+            ) {
+                Column(modifier = Modifier.padding(12.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("DISCO", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("💽", fontSize = 12.sp)
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "%.0f GB liberi".format(totalGB - usedGB),
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    LinearProgressIndicator(
+                        progress = { percentUsed },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(3.dp)
+                            .clip(RoundedCornerShape(2.dp)),
+                        color = MaterialTheme.colorScheme.primary,
+                        trackColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                    )
+                }
+            }
+        }
+
+        // ANTEPRIMA DISPOSITIVI CONNESSI
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(top = 8.dp),
+                .padding(top = 4.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "DISPOSITIVI CONNESSI",
+                text = "DISPOSITIVI CONNESSI (${uiState.devices.count { it.active == true }})",
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -901,17 +1169,17 @@ fun HomeScreen(
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .shadow(elevation = 1.dp, shape = RoundedCornerShape(28.dp)),
+                .shadow(elevation = 1.dp, shape = RoundedCornerShape(24.dp)),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
-            shape = RoundedCornerShape(28.dp)
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+            shape = RoundedCornerShape(24.dp)
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
                 if (uiState.devices.isEmpty()) {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(24.dp),
+                            .padding(20.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -925,8 +1193,7 @@ fun HomeScreen(
                         }
                     }
                 } else {
-                    // Limita l'anteprima a 3 dispositivi
-                    val activeDevices = uiState.devices.take(3)
+                    val activeDevices = uiState.devices.take(4)
                     for ((index, host) in activeDevices.withIndex()) {
                         DeviceRow(
                             host = host,
@@ -934,7 +1201,7 @@ fun HomeScreen(
                         )
                         if (index < activeDevices.size - 1) {
                             HorizontalDivider(
-                                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
+                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
                                 modifier = Modifier.padding(vertical = 4.dp)
                             )
                         }
@@ -2039,6 +2306,15 @@ fun SettingsScreen(
                                 }
                             }
                         }
+                        if (uiState.appPermissions["settings"] != true) {
+                            Text(
+                                text = "Nota: Per consentire la modifica delle impostazioni, accedi a http://192.168.1.254 (Gestione degli accessi -> Applicazioni) e clicca sulla matita a fianco di 'ItalianFreebox' per spuntare 'Modifica delle impostazioni'.",
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                lineHeight = 15.sp,
+                                modifier = Modifier.padding(top = 2.dp)
+                            )
+                        }
                     }
                 }
 
@@ -2761,53 +3037,46 @@ fun IliadBottomBar(
 ) {
     NavigationBar(
         containerColor = MaterialTheme.colorScheme.surface,
-        tonalElevation = 0.dp,
-        modifier = Modifier.border(BorderStroke(1.dp, MaterialTheme.colorScheme.outline))
+        tonalElevation = 2.dp,
+        windowInsets = WindowInsets.navigationBars,
+        modifier = Modifier.border(BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant))
     ) {
         val items = listOf(
-            Triple(AppScreen.HOME, stringResource(R.string.title_home), "🏠"),
-            Triple(AppScreen.DEVICES, stringResource(R.string.title_devices), "💻"),
-            Triple(AppScreen.FILES, stringResource(R.string.title_files), "📁"),
-            Triple(AppScreen.DOWNLOADS, stringResource(R.string.title_downloads), "📥"),
-            Triple(AppScreen.SETTINGS, stringResource(R.string.title_settings), "⚙️")
+            Triple(AppScreen.HOME, stringResource(R.string.title_home), Icons.Default.Home),
+            Triple(AppScreen.DEVICES, stringResource(R.string.title_devices), Icons.Default.Phone),
+            Triple(AppScreen.DOWNLOADS, "Storage", Icons.Default.List),
+            Triple(AppScreen.SETTINGS, stringResource(R.string.title_settings), Icons.Default.Settings)
         )
 
         for (item in items) {
-            val selected = currentScreen == item.first
+            val selected = when (item.first) {
+                AppScreen.DOWNLOADS -> currentScreen == AppScreen.DOWNLOADS || currentScreen == AppScreen.FILES
+                else -> currentScreen == item.first
+            }
             NavigationBarItem(
                 selected = selected,
                 onClick = { onSelectScreen(item.first) },
                 icon = {
-                    Box(
-                        modifier = Modifier
-                            .width(64.dp)
-                            .height(32.dp)
-                            .clip(RoundedCornerShape(100.dp))
-                            .background(
-                                if (selected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = item.third,
-                            fontSize = 18.sp,
-                            modifier = if (!selected) Modifier.background(Color.Transparent) else Modifier
-                        )
-                    }
+                    Icon(
+                        imageVector = item.third,
+                        contentDescription = item.second,
+                        modifier = Modifier.size(24.dp)
+                    )
                 },
                 label = {
                     Text(
                         text = item.second,
-                        fontSize = 9.5.sp,
+                        fontSize = 11.sp,
                         fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-                        color = if (selected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        softWrap = false,
-                        overflow = TextOverflow.Ellipsis
+                        maxLines = 1
                     )
                 },
                 colors = NavigationBarItemDefaults.colors(
-                    indicatorColor = Color.Transparent
+                    selectedIconColor = MaterialTheme.colorScheme.primary,
+                    selectedTextColor = MaterialTheme.colorScheme.primary,
+                    indicatorColor = MaterialTheme.colorScheme.primaryContainer,
+                    unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             )
         }
@@ -2815,13 +3084,88 @@ fun IliadBottomBar(
 }
 
 @Composable
+fun StorageScreen(
+    uiState: FreeboxUiState,
+    viewModel: FreeboxViewModel,
+    initialTab: Int = 0,
+    onAddDownload: () -> Unit = {}
+) {
+    var selectedTab by remember(initialTab) { mutableIntStateOf(initialTab) }
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        TabRow(
+            selectedTabIndex = selectedTab,
+            containerColor = MaterialTheme.colorScheme.surface,
+            contentColor = MaterialTheme.colorScheme.primary,
+            divider = { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)) }
+        ) {
+            val downloadingCount = uiState.downloadTasks.count { 
+                it.status == "downloading" || it.status.contains("seeding", ignoreCase = true) || it.status.contains("seed", ignoreCase = true) 
+            }
+            Tab(
+                selected = selectedTab == 0,
+                onClick = { selectedTab = 0 },
+                text = {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Text("Torrent & Download", fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Medium)
+                        if (downloadingCount > 0) {
+                            Badge(
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                contentColor = Color.White
+                            ) {
+                                Text(downloadingCount.toString(), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                },
+                icon = { Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp)) }
+            )
+            Tab(
+                selected = selectedTab == 1,
+                onClick = { selectedTab = 1 },
+                text = {
+                    Text("Esplora File", fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Medium)
+                },
+                icon = { Icon(Icons.Default.List, contentDescription = null, modifier = Modifier.size(18.dp)) }
+            )
+        }
+
+        Box(modifier = Modifier.weight(1f)) {
+            when (selectedTab) {
+                0 -> DownloadsScreen(uiState = uiState, viewModel = viewModel, onAddDownload = onAddDownload)
+                1 -> FilesScreen(uiState = uiState, viewModel = viewModel)
+            }
+        }
+    }
+}
+
+@Composable
 fun DownloadsScreen(
     uiState: FreeboxUiState,
-    viewModel: FreeboxViewModel
+    viewModel: FreeboxViewModel,
+    onAddDownload: () -> Unit = {}
 ) {
     // Automatically load downloads when entering the screen
     LaunchedEffect(Unit) {
         viewModel.getDownloadTasks()
+    }
+
+    var filterStatus by remember { mutableStateOf("all") }
+
+    val downloadingCount = uiState.downloadTasks.count { 
+        it.status == "downloading" || it.status.contains("seeding", ignoreCase = true) || it.status.contains("seed", ignoreCase = true) || it.status == "starting"
+    }
+    val completedCount = uiState.downloadTasks.count { it.status == "done" || it.status == "seeding_done" }
+    val pausedCount = uiState.downloadTasks.count { it.status == "stopped" || it.status == "stopped_error" || it.status == "seeding_paused" }
+
+    val filteredTasks = when (filterStatus) {
+        "active" -> uiState.downloadTasks.filter { it.status == "downloading" || it.status.contains("seeding", ignoreCase = true) || it.status.contains("seed", ignoreCase = true) || it.status == "starting" }
+        "done" -> uiState.downloadTasks.filter { it.status == "done" || it.status == "seeding_done" }
+        "paused" -> uiState.downloadTasks.filter { it.status == "stopped" || it.status == "stopped_error" || it.status == "seeding_paused" }
+        else -> uiState.downloadTasks
     }
 
     Column(
@@ -2832,13 +3176,14 @@ fun DownloadsScreen(
         // Card displaying current transfer statistics (compact actual speeds)
         Card(
             modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)),
-            shape = RoundedCornerShape(12.dp)
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+            shape = RoundedCornerShape(16.dp),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
         ) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
@@ -2853,7 +3198,7 @@ fun DownloadsScreen(
                         Text(
                             text = "${formatBytes(uiState.currentDownloadRate)}/s",
                             fontWeight = FontWeight.Bold,
-                            fontSize = 12.sp,
+                            fontSize = 13.sp,
                             color = MaterialTheme.colorScheme.primary
                         )
                     }
@@ -2865,20 +3210,15 @@ fun DownloadsScreen(
                         Text(
                             text = "${formatBytes(uiState.currentUploadRate)}/s",
                             fontWeight = FontWeight.Bold,
-                            fontSize = 12.sp,
+                            fontSize = 13.sp,
                             color = MaterialTheme.colorScheme.secondary
                         )
                     }
                 }
 
-                // Count active/total
-                val downloadingCount = uiState.downloadTasks.count { 
-                    it.status == "downloading" || it.status.contains("seeding", ignoreCase = true) || it.status.contains("seed", ignoreCase = true) 
-                }
-                val totalCount = uiState.downloadTasks.size
                 Text(
-                    text = "$downloadingCount attivi di $totalCount",
-                    fontWeight = FontWeight.Medium,
+                    text = "$downloadingCount attivi di ${uiState.downloadTasks.size}",
+                    fontWeight = FontWeight.SemiBold,
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -2887,12 +3227,12 @@ fun DownloadsScreen(
 
         // Card displaying disk space
         if (uiState.partitions.isNotEmpty()) {
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(10.dp))
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 shape = RoundedCornerShape(16.dp),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
             ) {
                 Column(
                     modifier = Modifier
@@ -2901,7 +3241,7 @@ fun DownloadsScreen(
                 ) {
                     Text(
                         text = "SPAZIO DI ARCHIVIAZIONE",
-                        fontSize = 11.sp,
+                        fontSize = 10.sp,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         letterSpacing = 1.sp,
@@ -2930,17 +3270,17 @@ fun DownloadsScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text("💽", fontSize = 18.sp, modifier = Modifier.padding(end = 8.dp))
+                                Text("💽", fontSize = 16.sp, modifier = Modifier.padding(end = 8.dp))
                                 Column {
                                     Text(
                                         text = partition.label ?: "Disque dur",
                                         fontWeight = FontWeight.Bold,
-                                        fontSize = 13.sp,
+                                        fontSize = 12.sp,
                                         color = MaterialTheme.colorScheme.onSurface
                                     )
                                     Text(
                                         text = "Stato: ${partition.state ?: "mounted"}",
-                                        fontSize = 11.sp,
+                                        fontSize = 10.sp,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 }
@@ -2950,12 +3290,12 @@ fun DownloadsScreen(
                                 Text(
                                     text = "%.1f GB liberi di %.1f GB".format(freeGB, totalGB),
                                     fontWeight = FontWeight.Medium,
-                                    fontSize = 12.sp,
+                                    fontSize = 11.sp,
                                     color = MaterialTheme.colorScheme.onSurface
                                 )
                                 Text(
                                     text = "%.1f GB usati".format(usedGB),
-                                    fontSize = 11.sp,
+                                    fontSize = 10.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
@@ -2963,37 +3303,58 @@ fun DownloadsScreen(
 
                         Spacer(modifier = Modifier.height(6.dp))
 
-                        // Progress bar for used space
                         LinearProgressIndicator(
                             progress = { percentage },
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(6.dp)
+                                .height(5.dp)
                                 .clip(RoundedCornerShape(3.dp)),
                             color = if (percentage > 0.9f) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
-                            trackColor = MaterialTheme.colorScheme.surfaceVariant
+                            trackColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
                         )
                     }
                 }
             }
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(12.dp))
 
-        // List of Download Tasks
-        Text(
-            text = "CODA DEI TASK",
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            letterSpacing = 1.sp,
-            modifier = Modifier.padding(bottom = 8.dp)
-        )
+        // Filter chips row
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            FilterChip(
+                selected = filterStatus == "all",
+                onClick = { filterStatus = "all" },
+                label = { Text("Tutti (${uiState.downloadTasks.size})", fontSize = 11.sp) }
+            )
+            FilterChip(
+                selected = filterStatus == "active",
+                onClick = { filterStatus = "active" },
+                label = { Text("In corso ($downloadingCount)", fontSize = 11.sp) }
+            )
+            FilterChip(
+                selected = filterStatus == "done",
+                onClick = { filterStatus = "done" },
+                label = { Text("Completati ($completedCount)", fontSize = 11.sp) }
+            )
+            FilterChip(
+                selected = filterStatus == "paused",
+                onClick = { filterStatus = "paused" },
+                label = { Text("In pausa ($pausedCount)", fontSize = 11.sp) }
+            )
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
 
         var taskToDelete by remember { mutableStateOf<com.example.data.api.DownloadTask?>(null) }
 
         Box(modifier = Modifier.weight(1f)) {
-            if (uiState.downloadTasks.isEmpty()) {
+            if (filteredTasks.isEmpty()) {
                 Box(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
@@ -3002,14 +3363,14 @@ fun DownloadsScreen(
                         Text("📥", fontSize = 48.sp)
                         Spacer(modifier = Modifier.height(12.dp))
                         Text(
-                            text = "Nessun download in coda",
+                            text = if (uiState.downloadTasks.isEmpty()) "Nessun download in coda" else "Nessun download in questa categoria",
                             fontWeight = FontWeight.SemiBold,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             fontSize = 14.sp
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = "Premi il tasto '+' in alto per iniziare",
+                            text = "Premi '+' per aggiungere Magnet o Torrent",
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                             fontSize = 12.sp
                         )
@@ -3017,10 +3378,10 @@ fun DownloadsScreen(
                 }
             } else {
                 LazyColumn(
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
                     modifier = Modifier.fillMaxSize()
                 ) {
-                    items(uiState.downloadTasks, key = { it.id }) { task ->
+                    items(filteredTasks, key = { it.id }) { task ->
                         DownloadTaskCard(
                             task = task,
                             isExpanded = uiState.expandedTaskIds.contains(task.id),
